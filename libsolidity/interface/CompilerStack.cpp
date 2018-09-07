@@ -40,6 +40,7 @@
 #include <libsolidity/analysis/SyntaxChecker.h>
 #include <libsolidity/analysis/ViewPureChecker.h>
 #include <libsolidity/codegen/Compiler.h>
+#include <libsolidity/clang/ClangCompiler.h>
 #include <libsolidity/formal/SMTChecker.h>
 #include <libsolidity/interface/ABI.h>
 #include <libsolidity/interface/Natspec.h>
@@ -421,6 +422,18 @@ Json::Value CompilerStack::assemblyJSON(string const& _contractName, StringMap _
 		return Json::Value();
 }
 
+/// compile Solidity to Clang
+string CompilerStack::clangString(string const& _contractName, StringMap _sourceCodes) const
+{
+	Contract const& currentContract = contract(_contractName);
+	(void)_sourceCodes;
+	ContractDefinition const* contract = currentContract.contract;
+	if (currentContract.clangCompiler)
+		return currentContract.clangCompiler->clangString(contract);
+	else
+		return string();
+}
+
 vector<string> CompilerStack::sourceNames() const
 {
 	vector<string> names;
@@ -713,6 +726,11 @@ void CompilerStack::compileContract(
 
 	shared_ptr<Compiler> compiler = make_shared<Compiler>(m_evmVersion, m_optimize, m_optimizeRuns);
 	Contract& compiledContract = m_contracts.at(_contract.fullyQualifiedName());
+
+	// Clang Compiler
+	shared_ptr<ClangCompiler> clangCompiler = make_shared<ClangCompiler>();
+	compiledContract.clangCompiler = clangCompiler;
+
 	string metadata = createMetadata(compiledContract);
 	bytes cborEncodedHash =
 		// CBOR-encoding of the key "bzzr0"

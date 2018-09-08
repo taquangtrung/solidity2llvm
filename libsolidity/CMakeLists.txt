@@ -2,6 +2,15 @@
 file(GLOB_RECURSE sources "*.cpp" "../libjulia/*.cpp")
 file(GLOB_RECURSE headers "*.h" "../libjulia/*.h")
 
+# find_package(CLANG QUIET)
+# if (${CLANG_FOUND})
+#   include_directories(${CLANG_INCLUDE_DIR})
+#   message("CLANG library found.")
+# else()
+#   message("CLANG library NOT found.")
+# endif()
+
+
 find_package(Z3 QUIET)
 if (${Z3_FOUND})
   include_directories(${Z3_INCLUDE_DIR})
@@ -38,3 +47,14 @@ if (${CVC4_FOUND} AND ${GMP_FOUND})
   target_link_libraries(solidity PUBLIC ${CVC4_LIBRARY})
   target_link_libraries(solidity PUBLIC ${GMP_LIBRARY})
 endif()
+
+# Tutorial for embedding LLVM:
+# https://llvm.org/docs/CMake.html#embedding-llvm-in-your-project
+
+find_package(LLVM REQUIRED CONFIG)
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+llvm_map_components_to_libnames(llvm_libs support core irreader)
+target_link_libraries(solidity PUBLIC ${llvm_libs})

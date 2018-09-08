@@ -4,6 +4,8 @@
 #include "libsolidity/ast/ASTVisitor.h"
 #include "libevmasm/LinkerObject.h"
 
+#include <clang/AST/ASTContext.h>
+
 #include <map>
 
 using namespace std;

@@ -5,6 +5,7 @@
 #include "libsolidity/ast/AST.h"
 #include <libsolidity/interface/Exceptions.h>
 #include <libdevcore/SHA3.h>
+#include <clang/Basic/FileManager.h>
 
 
 using namespace std;
@@ -20,7 +21,8 @@ void ClangCompiler::compileContract(const ContractDefinition &contract, const by
 /*
    _sourceCodes: maps name of a contract to its source code
  */
-string ClangCompiler::clangString(const ContractDefinition* contract) {
+string ClangCompiler::clangString(const ContractDefinition* contract, StringMap sourceCodes) {
+	compilingSourceCodes = sourceCodes;
 	return "CLANG STRING";
 
 	// // update global vars
@@ -746,5 +748,20 @@ clang::BinaryOperatorKind ClangCompiler::transBinaryOpcode(Token::Value op) {
 
 
 clang::SourceLocation ClangCompiler::transLocation(SourceLocation loc) {
+	int line;
+	int column;
+	string sourceContent = "";
+	string fileName = *(loc.sourceName);
+	for (auto source: compilingSourceCodes)
+		if (source.first == fileName) {
+			sourceContent = source.second;
+			break;
+		}
 
+	CharStream stream = CharStream(sourceContent);
+	tie(line, column) = stream.translatePositionToLineColumn(loc.start);
+
+	clang::FileSystemOptions fileSystemOptions;
+	clang::FileManager fileManager(fileSystemOptions);
+	// auto fileEntry = fileManager.getFile(fileName);
 }

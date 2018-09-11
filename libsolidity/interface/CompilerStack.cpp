@@ -426,10 +426,9 @@ Json::Value CompilerStack::assemblyJSON(string const& _contractName, StringMap _
 string CompilerStack::clangString(string const& _contractName, StringMap _sourceCodes) const
 {
 	Contract const& currentContract = contract(_contractName);
-	(void)_sourceCodes;
 	ContractDefinition const* contract = currentContract.contract;
 	if (currentContract.clangCompiler)
-		return currentContract.clangCompiler->clangString(contract);
+		return currentContract.clangCompiler->clangString(contract, _sourceCodes);
 	else
 		return string();
 }

@@ -1,11 +1,14 @@
 #pragma once
 
+#include "libsolidity/parsing/Scanner.h"
 #include "libsolidity/ast/AST.h"
 #include "libsolidity/ast/ASTVisitor.h"
 #include "libevmasm/LinkerObject.h"
 
 #include <clang/AST/AST.h>
 #include <clang/AST/Decl.h>
+#include <clang/Basic/FileSystemOptions.h>
+#include <clang/Basic/FileManager.h>
 
 
 #include <map>
@@ -49,7 +52,7 @@ public:
 	// compile a contract to string.
 	void compileContract(const ContractDefinition &contract, const bytes &metadata);
 
-	string clangString(const ContractDefinition* contract);
+	string clangString(const ContractDefinition* contract, StringMap sourceCodes);
 
 	/* string compileStructDecl(const StructDefinition* st); */
 	/* string compileVarDecl(const VariableDeclaration* var, int indent); */
@@ -104,6 +107,7 @@ public:
 
 private:
 	const ContractDefinition* CompilingContract;
+	StringMap compilingSourceCodes;
 	bool debug;
 
 };

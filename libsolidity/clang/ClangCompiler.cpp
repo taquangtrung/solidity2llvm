@@ -23,6 +23,9 @@ void ClangCompiler::compileContract(const ContractDefinition &contract, const by
  */
 string ClangCompiler::clangString(const ContractDefinition* contract, StringMap sourceCodes) {
 	compilingSourceCodes = sourceCodes;
+
+	transContract(contract);
+
 	return "CLANG STRING";
 
 	// // update global vars
@@ -574,7 +577,175 @@ string ClangCompiler::clangString(const ContractDefinition* contract, StringMap 
 // }
 
 
+/********************************************************
+ *           Compile declarations to Clang AST
+ ********************************************************/
 
+string ClangCompiler::transContract(const ContractDefinition* contract) {
+
+		// // update global vars
+		// CompilingContract = contract;
+		// debug = true;
+
+		// cout << "== OUTPUT C CONTRACT == " << endl;
+		// string result = "";
+
+		// // structs
+		// for (const StructDefinition* st: contract->definedStructs())
+		// 	result = result + "\n\n" + compileStructDecl(st);
+
+		// // enum
+		// // for (const EnumDefinition* en: contract->definedStructs())
+		// // 	result = result + "\n\n" + compileStruct(st);
+
+		// // state variables
+		// for (const VariableDeclaration* var: contract->stateVariables())
+		// 	result = result + "\n\n" + compileVarDecl(var, 0);
+
+		// functions
+		for (const FunctionDefinition* f: contract->definedFunctions())
+				transFunction(f);
+
+		return "";
+}
+
+clang::VarDecl* ClangCompiler::transVarDecl(const VariableDeclaration* var) {
+		return nullptr;
+}
+
+clang::FunctionDecl* ClangCompiler::transFunction(const FunctionDefinition* func) {
+	string result;
+
+	// returned type
+
+	// function name
+
+	// function parameters
+
+	// function body
+	string strBody = "";
+	for (auto stmt: func->body().statements())
+			transStmt(*stmt);
+
+	return nullptr;
+}
+
+
+/********************************************************
+ *           Compile statements to Clang AST
+ ********************************************************/
+
+clang::Stmt* ClangCompiler::transStmt(Statement const& stmt) {
+	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<Block const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<BreakableStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<Continue const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<Break const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<Return const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<Throw const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
+		if (s != nullptr) return transStmt(s);
+	}
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(InlineAssembly const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(Block const* stmt) {
+	for (auto s : stmt->statements())
+		transStmt(*s);
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(PlaceholderStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(IfStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(BreakableStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(WhileStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(ForStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(Continue const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(Break const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(Return const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(Throw const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(EmitStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(VariableDeclarationStatement const* stmt) {
+	// TODO
+	return nullptr;
+}
+
+clang::Stmt* ClangCompiler::transStmt(ExpressionStatement const* stmt) {
+	// TODO
+	transExp(&(stmt->expression()));
+	return nullptr;
+}
 
 /********************************************************
  *           Compile expressions to Clang AST
@@ -758,10 +929,28 @@ clang::SourceLocation ClangCompiler::transLocation(SourceLocation loc) {
 			break;
 		}
 
+	cout << "SOURCE CODE: " << endl << sourceContent << endl;
+
 	CharStream stream = CharStream(sourceContent);
 	tie(line, column) = stream.translatePositionToLineColumn(loc.start);
+	cout << "LOC start: " << loc.start << endl;
+	cout << "LOC line: " << line << ", column: " << column << endl;
+	cout << "===" << endl;
 
-	clang::FileSystemOptions fileSystemOptions;
-	clang::FileManager fileManager(fileSystemOptions);
-	// auto fileEntry = fileManager.getFile(fileName);
+	cout << "LOC end: " << loc.end << endl;
+	tie(line, column) = stream.translatePositionToLineColumn(loc.end);
+	cout << "LOC line: " << line << ", column: " << column << endl;
+
+	// clang::FileSystemOptions fileSystemOptions;
+	// clang::FileManager fileManager(fileSystemOptions);
+	// // auto fileEntry = fileManager.getFile(fileName);
+
+    clang::FileSystemOptions fileSystemOptions;
+    clang::FileManager fileManager(fileSystemOptions);
+
+	// clang::CompilerInstance compilerInstance;
+	// compilerInstance.createFileManager();
+	// auto& fileManager = compilerInstance.getFileManager();
+
+
 }

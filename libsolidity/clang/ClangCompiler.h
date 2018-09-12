@@ -9,7 +9,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/Basic/FileSystemOptions.h>
 #include <clang/Basic/FileManager.h>
-
+#include <clang/Frontend/CompilerInstance.h>
 
 #include <map>
 
@@ -26,6 +26,29 @@ public:
 	debug(false),
 	CompilingContract(nullptr)
 	{ }
+
+
+	string transContract(const ContractDefinition* contract);
+	clang::VarDecl* transVarDecl(const VariableDeclaration* var);
+	clang::FunctionDecl* transFunction(const FunctionDefinition* func);
+
+
+	clang::Stmt* transStmt(Statement const& stmt);
+	clang::Stmt* transStmt(InlineAssembly const* stmt);
+	clang::Stmt* transStmt(Block const* stmt);
+	clang::Stmt* transStmt(PlaceholderStatement const* stmt);
+	clang::Stmt* transStmt(IfStatement const* stmt);
+	clang::Stmt* transStmt(BreakableStatement const* stmt);
+	clang::Stmt* transStmt(WhileStatement const* stmt);
+	clang::Stmt* transStmt(ForStatement const* stmt);
+	clang::Stmt* transStmt(Continue const* stmt);
+	clang::Stmt* transStmt(Break const* stmt);
+	clang::Stmt* transStmt(Return const* stmt);
+	clang::Stmt* transStmt(Throw const* stmt);
+	clang::Stmt* transStmt(EmitStatement const* stmt);
+	clang::Stmt* transStmt(VariableDeclarationStatement const* stmt);
+	clang::Stmt* transStmt(ExpressionStatement const* stmt);
+
 
 	// compile a contract to ClangAST
 	clang::Expr* transExp(Expression const* exp);

@@ -58,3 +58,16 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 target_link_libraries(solidity PUBLIC ${llvm_libs})
+
+
+add_library(LLVM-6.0 SHARED IMPORTED) # or STATIC instead of SHARED
+set_target_properties(LLVM-6.0 PROPERTIES
+  IMPORTED_LOCATION "/usr/lib/llvm-6.0/lib/libLLVM-6.0.so"
+  INTERFACE_INCLUDE_DIRECTORIES "/usr/lib/llvm-6.0/include"
+)
+add_library(clangBasic SHARED IMPORTED) # or STATIC instead of SHARED
+set_target_properties(clangBasic PROPERTIES
+  IMPORTED_LOCATION "/usr/lib/llvm-6.0/lib/libclangBasic.a"
+  INTERFACE_INCLUDE_DIRECTORIES "/usr/lib/llvm-6.0/include"
+)
+target_link_libraries(solidity PUBLIC "LLVM-6.0;clangBasic")

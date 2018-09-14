@@ -812,6 +812,15 @@ clang::Expr* ClangCompiler::transExp(UnaryOperation const* exp) {
 }
 
 clang::Expr* ClangCompiler::transExp(BinaryOperation const* exp) {
+	clang::BinaryOperator clangExp(struct EmptyShell());
+	clang::Expr* lhs = transExp(&(exp->leftExpression()));
+	clangExp.setLHS(lhs);
+	clang::Expr* rhs = transExp(&(exp->rightExpression()));
+	clang::BinaryOperatorKind op =
+		transBinaryOpcode(exp->getOperator());
+	clang::SourceLocation loc = transLocation(exp->location());
+
+
 	// TODO
 	return nullptr;
 }
@@ -929,28 +938,25 @@ clang::SourceLocation ClangCompiler::transLocation(SourceLocation loc) {
 			break;
 		}
 
-	cout << "SOURCE CODE: " << endl << sourceContent << endl;
+	// cout << "SOURCE CODE: " << endl << sourceContent << endl;
 
 	CharStream stream = CharStream(sourceContent);
 	tie(line, column) = stream.translatePositionToLineColumn(loc.start);
-	cout << "LOC start: " << loc.start << endl;
-	cout << "LOC line: " << line << ", column: " << column << endl;
-	cout << "===" << endl;
+	// cout << "LOC start: " << loc.start << endl;
+	// cout << "LOC line: " << line << ", column: " << column << endl;
+	// cout << "===" << endl;
 
-	cout << "LOC end: " << loc.end << endl;
-	tie(line, column) = stream.translatePositionToLineColumn(loc.end);
-	cout << "LOC line: " << line << ", column: " << column << endl;
-
+	// cout << "LOC end: " << loc.end << endl;
+	// tie(line, column) = stream.translatePositionToLineColumn(loc.end);
+	// cout << "LOC line: " << line << ", column: " << column << endl;
 	// clang::FileSystemOptions fileSystemOptions;
 	// clang::FileManager fileManager(fileSystemOptions);
 	// // auto fileEntry = fileManager.getFile(fileName);
 
-    clang::FileSystemOptions fileSystemOptions;
-    clang::FileManager fileManager(fileSystemOptions);
-
-	// clang::CompilerInstance compilerInstance;
-	// compilerInstance.createFileManager();
-	// auto& fileManager = compilerInstance.getFileManager();
-
-
+	clang::CompilerInstance compilerInstance;
+	compilerInstance.createFileManager();
+	clang::SourceManager& source = compilerInstance.getSourceManager();
+	auto& fileManager = compilerInstance.getFileManager();
+	const clang::FileEntry* file = fileManager.getFile(fileName);
+	return source.translateFileLineCol(file, line, column);
 }

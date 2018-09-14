@@ -6,6 +6,7 @@
 #include "libevmasm/LinkerObject.h"
 
 #include <clang/AST/AST.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/Decl.h>
 #include <clang/Basic/FileSystemOptions.h>
 #include <clang/Basic/FileManager.h>

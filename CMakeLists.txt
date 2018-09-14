@@ -31,6 +31,12 @@ include(EthCompilerSettings)
 # Include utils
 include(EthUtils)
 
+# llvm, clang
+include(FindLLVM)
+include(FindClang)
+
+
+
 # Create license.h from LICENSE.txt and template
 # Converting to char array is required due to MSVC's string size limit.
 file(READ ${CMAKE_SOURCE_DIR}/LICENSE.txt LICENSE_TEXT HEX)

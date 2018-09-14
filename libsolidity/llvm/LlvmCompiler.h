@@ -5,12 +5,7 @@
 #include "libsolidity/ast/ASTVisitor.h"
 #include "libevmasm/LinkerObject.h"
 
-#include <clang/AST/AST.h>
-#include <clang/AST/Stmt.h>
-#include <clang/AST/Decl.h>
-#include <clang/Basic/FileSystemOptions.h>
-#include <clang/Basic/FileManager.h>
-#include <clang/Frontend/CompilerInstance.h>
+#include <llvm/IR/Value.h>
 
 #include <map>
 
@@ -29,49 +24,41 @@ public:
 	{ }
 
 
-	string transContract(const ContractDefinition* contract);
-	clang::VarDecl* transVarDecl(const VariableDeclaration* var);
-	clang::FunctionDecl* transFunction(const FunctionDefinition* func);
+	llvm::Value* transContract(const ContractDefinition* contract);
+	llvm::Value* transFunc(FunctionDefinition const* func);
 
-
-	clang::Stmt* transStmt(Statement const& stmt);
-	clang::Stmt* transStmt(InlineAssembly const* stmt);
-	clang::Stmt* transStmt(Block const* stmt);
-	clang::Stmt* transStmt(PlaceholderStatement const* stmt);
-	clang::Stmt* transStmt(IfStatement const* stmt);
-	clang::Stmt* transStmt(BreakableStatement const* stmt);
-	clang::Stmt* transStmt(WhileStatement const* stmt);
-	clang::Stmt* transStmt(ForStatement const* stmt);
-	clang::Stmt* transStmt(Continue const* stmt);
-	clang::Stmt* transStmt(Break const* stmt);
-	clang::Stmt* transStmt(Return const* stmt);
-	clang::Stmt* transStmt(Throw const* stmt);
-	clang::Stmt* transStmt(EmitStatement const* stmt);
-	clang::Stmt* transStmt(VariableDeclarationStatement const* stmt);
-	clang::Stmt* transStmt(ExpressionStatement const* stmt);
+	llvm::Value* transStmt(Statement const& stmt);
+	llvm::Value* transStmt(InlineAssembly const* stmt);
+	llvm::Value* transStmt(Block const* stmt);
+	llvm::Value* transStmt(PlaceholderStatement const* stmt);
+	llvm::Value* transStmt(IfStatement const* stmt);
+	llvm::Value* transStmt(BreakableStatement const* stmt);
+	llvm::Value* transStmt(WhileStatement const* stmt);
+	llvm::Value* transStmt(ForStatement const* stmt);
+	llvm::Value* transStmt(Continue const* stmt);
+	llvm::Value* transStmt(Break const* stmt);
+	llvm::Value* transStmt(Return const* stmt);
+	llvm::Value* transStmt(Throw const* stmt);
+	llvm::Value* transStmt(EmitStatement const* stmt);
+	llvm::Value* transStmt(VariableDeclarationStatement const* stmt);
+	llvm::Value* transStmt(ExpressionStatement const* stmt);
 
 
 	// compile a contract to ClangAST
-	clang::Expr* transExp(Expression const* exp);
-	clang::Expr* transExp(Conditional const* exp);
-	clang::Expr* transExp(Assignment const* exp);
-	clang::Expr* transExp(TupleExpression const* exp);
-	clang::Expr* transExp(UnaryOperation const* exp);
-	clang::Expr* transExp(BinaryOperation const* exp);
-	clang::Expr* transExp(FunctionCall const* exp);
-	clang::Expr* transExp(NewExpression const* exp);
-	clang::Expr* transExp(MemberAccess const* exp);
-	clang::Expr* transExp(IndexAccess const* exp);
-	clang::Expr* transExp(PrimaryExpression const* exp);
-	clang::Expr* transExp(Identifier const* exp);
-	clang::Expr* transExp(ElementaryTypeNameExpression const* exp);
-	clang::Expr* transExp(Literal const* exp);
-
-	clang::UnaryOperatorKind transUnaryOpcode(Token::Value op);
-	clang::BinaryOperatorKind transBinaryOpcode(Token::Value op);
-	/* clang::CastKind transCastOpcode(Token::Value op); */
-
-	clang::SourceLocation transLocation(SourceLocation loc);
+	llvm::Value* transExp(Expression const* exp);
+	llvm::Value* transExp(Conditional const* exp);
+	llvm::Value* transExp(Assignment const* exp);
+	llvm::Value* transExp(TupleExpression const* exp);
+	llvm::Value* transExp(UnaryOperation const* exp);
+	llvm::Value* transExp(BinaryOperation const* exp);
+	llvm::Value* transExp(FunctionCall const* exp);
+	llvm::Value* transExp(NewExpression const* exp);
+	llvm::Value* transExp(MemberAccess const* exp);
+	llvm::Value* transExp(IndexAccess const* exp);
+	llvm::Value* transExp(PrimaryExpression const* exp);
+	llvm::Value* transExp(Identifier const* exp);
+	llvm::Value* transExp(ElementaryTypeNameExpression const* exp);
+	llvm::Value* transExp(Literal const* exp);
 
 	// compile a contract to string.
 	void compileContract(const ContractDefinition &contract, const bytes &metadata);

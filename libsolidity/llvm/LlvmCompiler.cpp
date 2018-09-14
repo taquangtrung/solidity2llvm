@@ -5,12 +5,29 @@
 #include "libsolidity/ast/AST.h"
 #include <libsolidity/interface/Exceptions.h>
 #include <libdevcore/SHA3.h>
-#include <clang/Basic/FileManager.h>
+
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
 
 
 using namespace std;
 using namespace dev;
 using namespace dev::solidity;
+
+static llvm::LLVMContext TheContext;
+static llvm::IRBuilder<> Builder(TheContext);
+static std::unique_ptr<llvm::Module> TheModule;
+static std::map<std::string, llvm::Value *> NamedValues;
+
+/// LogError* - These are little helper functions for error handling.
+void LogError(const char *Str) {
+	fprintf(stderr, "Error: %s\n", Str);
+}
 
 void LlvmCompiler::compileContract(const ContractDefinition &contract, const bytes &metadata) {
 	(void)metadata;
@@ -26,7 +43,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 
 	transContract(contract);
 
-	return "CLANG STRING";
+	return "LLVM IR STRING";
 
 	// // update global vars
 	// CompilingContract = contract;
@@ -581,7 +598,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
  *           Compile declarations to Clang AST
  ********************************************************/
 
-string LlvmCompiler::transContract(const ContractDefinition* contract) {
+llvm::Value* LlvmCompiler::transContract(const ContractDefinition* contract) {
 
 		// // update global vars
 		// CompilingContract = contract;
@@ -604,38 +621,20 @@ string LlvmCompiler::transContract(const ContractDefinition* contract) {
 
 		// functions
 		for (const FunctionDefinition* f: contract->definedFunctions())
-				transFunction(f);
+				transFunc(f);
 
-		return "";
-}
-
-clang::VarDecl* LlvmCompiler::transVarDecl(const VariableDeclaration* var) {
 		return nullptr;
 }
 
-clang::FunctionDecl* LlvmCompiler::transFunction(const FunctionDefinition* func) {
-	string result;
-
-	// returned type
-
-	// function name
-
-	// function parameters
-
-	// function body
-	string strBody = "";
-	for (auto stmt: func->body().statements())
-			transStmt(*stmt);
-
-	return nullptr;
+llvm::Value* LlvmCompiler::transFunc(const FunctionDefinition* func) {
+		return nullptr;
 }
-
 
 /********************************************************
  *           Compile statements to Clang AST
  ********************************************************/
 
-clang::Stmt* LlvmCompiler::transStmt(Statement const& stmt) {
+llvm::Value* LlvmCompiler::transStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
 		if (s != nullptr) return transStmt(s);
 	}
@@ -675,73 +674,73 @@ clang::Stmt* LlvmCompiler::transStmt(Statement const& stmt) {
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(InlineAssembly const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(InlineAssembly const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(Block const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(Block const* stmt) {
 	for (auto s : stmt->statements())
 		transStmt(*s);
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(PlaceholderStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(PlaceholderStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(IfStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(IfStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(BreakableStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(BreakableStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(WhileStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(WhileStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(ForStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(ForStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(Continue const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(Continue const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(Break const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(Break const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(Return const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(Return const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(Throw const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(Throw const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(EmitStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(EmitStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(VariableDeclarationStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(VariableDeclarationStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-clang::Stmt* LlvmCompiler::transStmt(ExpressionStatement const* stmt) {
+llvm::Value* LlvmCompiler::transStmt(ExpressionStatement const* stmt) {
 	// TODO
 	transExp(&(stmt->expression()));
 	return nullptr;
@@ -751,7 +750,7 @@ clang::Stmt* LlvmCompiler::transStmt(ExpressionStatement const* stmt) {
  *           Compile expressions to Clang AST
  ********************************************************/
 
-clang::Expr* LlvmCompiler::transExp(Expression const* exp) {
+llvm::Value* LlvmCompiler::transExp(Expression const* exp) {
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
 		if (e != nullptr) return transExp(e);
 	}
@@ -785,175 +784,127 @@ clang::Expr* LlvmCompiler::transExp(Expression const* exp) {
 	return nullptr;
 }
 
-clang::Expr* LlvmCompiler::transExp(Conditional const* exp) {
+llvm::Value* LlvmCompiler::transExp(Conditional const* exp) {
 	return nullptr;
 }
 
-clang::Expr* LlvmCompiler::transExp(Assignment const* exp) {
-	clang::Expr* lhs = transExp(&(exp->leftHandSide()));
-	clang::Expr* rhs = transExp(&(exp->rightHandSide()));
-	clang::BinaryOperatorKind op =
-		transBinaryOpcode(exp->assignmentOperator());
-	clang::SourceLocation loc = transLocation(exp->location());
-	// string op = compileOperator((exp->assignmentOperator()));
-
+llvm::Value* LlvmCompiler::transExp(Assignment const* exp) {
+	llvm::Value* lhs = transExp(&(exp->leftHandSide()));
+	llvm::Value* rhs = transExp(&(exp->rightHandSide()));
 	// TODO
 	return nullptr;
 }
 
-clang::Expr* LlvmCompiler::transExp(TupleExpression const* exp) {
+llvm::Value* LlvmCompiler::transExp(TupleExpression const* exp) {
 	// TODO
 	return nullptr;
 }
 
-clang::Expr* LlvmCompiler::transExp(UnaryOperation const* exp) {
+llvm::Value* LlvmCompiler::transExp(UnaryOperation const* exp) {
 	// TODO
 	return nullptr;
 }
 
-clang::Expr* LlvmCompiler::transExp(BinaryOperation const* exp) {
-	clang::BinaryOperator clangExp(struct EmptyShell());
-	clang::Expr* lhs = transExp(&(exp->leftExpression()));
-	clang::Expr* rhs = transExp(&(exp->rightExpression()));
-	clang::BinaryOperatorKind op =
-		transBinaryOpcode(exp->getOperator());
-	clang::SourceLocation loc = transLocation(exp->location());
-	// TODO
-	return nullptr;
-}
+llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
+	llvm::Value* lhs = transExp(&(exp->leftExpression()));
+	llvm::Value* rhs = transExp(&(exp->rightExpression()));
+	if (!lhs || !rhs)
+		return nullptr;
 
-clang::Expr* LlvmCompiler::transExp(FunctionCall const* exp) {
-	// TODO
-	return nullptr;
-}
+	Token::Value op = exp->getOperator();
 
-clang::Expr* LlvmCompiler::transExp(NewExpression const* exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(MemberAccess const* exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(IndexAccess const* exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(PrimaryExpression const* exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(Identifier const *exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(ElementaryTypeNameExpression const *exp) {
-	// TODO
-	return nullptr;
-}
-
-clang::Expr* LlvmCompiler::transExp(Literal const *exp) {
-	// TODO
-	return nullptr;
-}
-
-
-clang::UnaryOperatorKind LlvmCompiler::transUnaryOpcode(Token::Value op) {
+	// TODO: need to consider type of
 	switch (op) {
-	// unary operators
-	case Token::Not: return clang::UO_Not;
-	case Token::BitNot: return clang::UO_LNot;
-	case Token::Inc: return clang::UO_PostInc;
-	case Token::Dec: return clang::UO_PostDec;
-	// case Token::Delete: return "delete"; // TODO
-	//default: return "(Unknown Operator)";
+	case Token::Comma:
+		LogError("transExp: BinaryOp: need to support Comma Exp");
+		return nullptr;
+
+	case Token::Or:
+		return Builder.CreateOr(lhs, rhs, "Or");
+
+	case Token::And:
+		return Builder.CreateOr(lhs, rhs, "And");
+
+	case Token::BitOr:
+		return Builder.CreateOr(lhs, rhs, "BitOr");
+
+	case Token::BitXor:
+		return Builder.CreateXor(lhs, rhs, "BitXor");
+
+	case Token::BitAnd:
+		return Builder.CreateXor(lhs, rhs, "BitAnd");
+
+	case Token::SHL:
+		return Builder.CreateShl(lhs, rhs, "Shl");
+
+	case Token::SAR:
+		LogError("transExp: BinaryOp: need to support SAR");
+		return nullptr;
+
+	case Token::SHR:
+		return Builder.CreateLShr(lhs, rhs, "Shr");
+
+	case Token::Add:
+		return Builder.CreateAdd(lhs, rhs, "Add");
+
+	case Token::Sub:
+		return Builder.CreateSub(lhs, rhs, "Sub");
+
+	case Token::Mul:
+		return Builder.CreateMul(lhs, rhs, "Mul");
+
+	case Token::Div:
+		return Builder.CreateUDiv(lhs, rhs, "Div");
+
+	case Token::Mod:
+		return Builder.CreateURem(lhs, rhs, "Rem");
+
+	case Token::Exp:
+		LogError("transExp: BinaryOp: unhandled Exponential Exp");
+		return nullptr;
+
+	default:
+		LogError("transExp: BinaryOp: unknown operator");
+		return nullptr;
 	}
 }
 
-clang::BinaryOperatorKind LlvmCompiler::transBinaryOpcode(Token::Value op) {
-	switch (op) {
-	// binary op
-	case Token::Comma: return clang::BO_Comma;
-	case Token::Or: return clang::BO_LOr;
-	case Token::And: return clang::BO_LAnd;
-	case Token::BitOr: return clang::BO_Or;
-	case Token::BitXor: return clang::BO_Xor;
-	case Token::BitAnd: return clang::BO_And;
-	case Token::SHL: return clang::BO_Shl;
-	// case Token::SAR: return ">>"; // TODO
-	case Token::SHR: return clang::BO_Shr;
-	case Token::Add: return clang::BO_Add;
-	case Token::Sub: return clang::BO_Sub;
-	case Token::Mul: return clang::BO_Mul;
-	case Token::Div: return clang::BO_Div;
-	case Token::Mod: return clang::BO_Rem;
-	// case Token::Exp: return "**"; // TODO
-	// comparison
-	case Token::Equal: return clang::BO_EQ;
-	case Token::NotEqual: return clang::BO_NE;
-	case Token::LessThan: return clang::BO_LT;
-	case Token::GreaterThan: return clang::BO_GT;
-	case Token::LessThanOrEqual: return clang::BO_LE;
-	case Token::GreaterThanOrEqual: return clang::BO_GE;
-	// assigment
-	case Token::Assign: return clang::BO_Assign;
-	case Token::AssignBitOr: return clang::BO_OrAssign;
-	case Token::AssignBitXor: return clang::BO_XorAssign;
-	case Token::AssignBitAnd: return clang::BO_AndAssign;
-	case Token::AssignShl: return clang::BO_ShlAssign;
-	// case Token::AssignSar: return ">>=";
-	case Token::AssignShr: return clang::BO_ShrAssign;
-	case Token::AssignAdd: return clang::BO_AddAssign;
-	case Token::AssignSub: return clang::BO_SubAssign;
-	case Token::AssignMul: return clang::BO_MulAssign;
-	case Token::AssignDiv: return clang::BO_DivAssign;
-	case Token::AssignMod: return clang::BO_RemAssign;
-	//default: return "(Unknown Operator)";
-	}
+llvm::Value* LlvmCompiler::transExp(FunctionCall const* exp) {
+	// TODO
+	return nullptr;
 }
 
-// clang::CastKind LlvmCompiler::transCastOpcode(Token::Value op) {
-// 	switch (op) {
-// 	//default: return "(Unknown Operator)";
-// 	}
-// }
+llvm::Value* LlvmCompiler::transExp(NewExpression const* exp) {
+	// TODO
+	return nullptr;
+}
 
+llvm::Value* LlvmCompiler::transExp(MemberAccess const* exp) {
+	// TODO
+	return nullptr;
+}
 
-clang::SourceLocation LlvmCompiler::transLocation(SourceLocation loc) {
-	int line;
-	int column;
-	string sourceContent = "";
-	string fileName = *(loc.sourceName);
-	for (auto source: compilingSourceCodes)
-		if (source.first == fileName) {
-			sourceContent = source.second;
-			break;
-		}
+llvm::Value* LlvmCompiler::transExp(IndexAccess const* exp) {
+	// TODO
+	return nullptr;
+}
 
-	// cout << "SOURCE CODE: " << endl << sourceContent << endl;
+llvm::Value* LlvmCompiler::transExp(PrimaryExpression const* exp) {
+	// TODO
+	return nullptr;
+}
 
-	CharStream stream = CharStream(sourceContent);
-	tie(line, column) = stream.translatePositionToLineColumn(loc.start);
-	// cout << "LOC start: " << loc.start << endl;
-	// cout << "LOC line: " << line << ", column: " << column << endl;
-	// cout << "===" << endl;
+llvm::Value* LlvmCompiler::transExp(Identifier const *exp) {
+	// TODO
+	return nullptr;
+}
 
-	// cout << "LOC end: " << loc.end << endl;
-	// tie(line, column) = stream.translatePositionToLineColumn(loc.end);
-	// cout << "LOC line: " << line << ", column: " << column << endl;
-	// clang::FileSystemOptions fileSystemOptions;
-	// clang::FileManager fileManager(fileSystemOptions);
-	// // auto fileEntry = fileManager.getFile(fileName);
+llvm::Value* LlvmCompiler::transExp(ElementaryTypeNameExpression const *exp) {
+	// TODO
+	return nullptr;
+}
 
-	clang::CompilerInstance compilerInstance;
-	compilerInstance.createFileManager();
-	clang::SourceManager& source = compilerInstance.getSourceManager();
-	auto& fileManager = compilerInstance.getFileManager();
-	const clang::FileEntry* file = fileManager.getFile(fileName);
-	return source.translateFileLineCol(file, line, column);
+llvm::Value* LlvmCompiler::transExp(Literal const *exp) {
+	// TODO
+	return nullptr;
 }

@@ -814,13 +814,10 @@ clang::Expr* ClangCompiler::transExp(UnaryOperation const* exp) {
 clang::Expr* ClangCompiler::transExp(BinaryOperation const* exp) {
 	clang::BinaryOperator clangExp(struct EmptyShell());
 	clang::Expr* lhs = transExp(&(exp->leftExpression()));
-	clangExp.setLHS(lhs);
 	clang::Expr* rhs = transExp(&(exp->rightExpression()));
 	clang::BinaryOperatorKind op =
 		transBinaryOpcode(exp->getOperator());
 	clang::SourceLocation loc = transLocation(exp->location());
-
-
 	// TODO
 	return nullptr;
 }

@@ -13,6 +13,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Constants.h"
 
 
 using namespace std;
@@ -785,6 +786,7 @@ llvm::Value* LlvmCompiler::transExp(Expression const* exp) {
 }
 
 llvm::Value* LlvmCompiler::transExp(Conditional const* exp) {
+	// TODO
 	return nullptr;
 }
 
@@ -801,20 +803,53 @@ llvm::Value* LlvmCompiler::transExp(TupleExpression const* exp) {
 }
 
 llvm::Value* LlvmCompiler::transExp(UnaryOperation const* exp) {
-	// TODO
-	return nullptr;
+	llvm::Value* subExp = transExp(&(exp->subExpression()));
+	if (!subExp) return nullptr;
+
+	Token::Value op = exp->getOperator();
+
+
+	switch (op) {
+	case Token::Not:
+		return Builder.CreateNot(subExp, "Not");
+
+	case Token::BitNot:
+		return Builder.CreateNot(subExp, "BitNot");
+
+	case Token::Inc: {
+		llvm::Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
+		auto newExp = Builder.CreateAdd(subExp, one, "Inc");
+		auto storeExp = Builder.CreateStore(newExp, subExp);
+		return storeExp;
+	}
+
+	case Token::Dec: {
+		llvm::Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
+		auto newExp = Builder.CreateSub(subExp, one, "Dec");
+		auto storeExp = Builder.CreateStore(newExp, subExp);
+		return storeExp;
+	}
+
+	case Token::Delete:
+		LogError("transExp: UnaryOp: unhandled Delete");
+		return nullptr;
+
+	default:
+		LogError("transExp: UnaryOp: unknown operator");
+		return nullptr;
+	}
 }
 
 llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
 	llvm::Value* lhs = transExp(&(exp->leftExpression()));
 	llvm::Value* rhs = transExp(&(exp->rightExpression()));
-	if (!lhs || !rhs)
-		return nullptr;
+	if (!lhs || !rhs) return nullptr;
 
 	Token::Value op = exp->getOperator();
 
-	// TODO: need to consider type of
 	switch (op) {
+	// TODO: there might be different type of IR Exps for the same token
+
 	case Token::Comma:
 		LogError("transExp: BinaryOp: need to support Comma Exp");
 		return nullptr;

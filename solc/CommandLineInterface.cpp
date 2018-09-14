@@ -85,6 +85,7 @@ static string const g_strCombinedJson = "combined-json";
 static string const g_strCompactJSON = "compact-format";
 static string const g_strContracts = "contracts";
 static string const g_strClang = "clang";
+static string const g_strLlvm = "llvm";
 static string const g_strEVM = "evm";
 static string const g_strEVM15 = "evm15";
 static string const g_strEVMVersion = "evm-version";
@@ -135,6 +136,7 @@ static string const g_argCombinedJson = g_strCombinedJson;
 static string const g_argCompactJSON = g_strCompactJSON;
 static string const g_argFormal = g_strFormal;
 static string const g_argClang = g_strClang;
+static string const g_argLlvm = g_strLlvm;
 static string const g_argGas = g_strGas;
 static string const g_argHelp = g_strHelp;
 static string const g_argInputFile = g_strInputFile;
@@ -629,6 +631,7 @@ Allowed options)",
 		(g_argAstJson.c_str(), "AST of all source files in JSON format.")
 		(g_argAstCompactJson.c_str(), "AST of all source files in a compact JSON format.")
 		(g_argClang.c_str(), "Clang code of the contracts.")
+		(g_argLlvm.c_str(), "LLVM IR of the contracts.")
 		(g_argAsm.c_str(), "EVM assembly of the contracts.")
 		(g_argAsmJson.c_str(), "EVM assembly of the contracts in JSON format.")
 		(g_argOpcodes.c_str(), "Opcodes of the contracts.")
@@ -1231,13 +1234,15 @@ void CommandLineInterface::outputCompilationResults()
 			string ret;
 			// m_sourceCodes: maps a file path to its source code
 			ret = m_compiler->clangString(contract, m_sourceCodes);
+			cout << ret << endl;
+		}
 
-			if (m_args.count(g_argOutputDir)) {
-				createFile(m_compiler->filesystemFriendlyName(contract) + (m_args.count(g_argAsmJson) ? "_evm.json" : ".evm"), ret);
-			}
-			else {
+		// translate to LLVM IR
+		if (m_args.count(g_argLlvm)) {
+				string ret;
+				// m_sourceCodes: maps a file path to its source code
+				ret = m_compiler->llvmString(contract, m_sourceCodes);
 				cout << ret << endl;
-			}
 		}
 
 		if (m_args.count(g_argGas))

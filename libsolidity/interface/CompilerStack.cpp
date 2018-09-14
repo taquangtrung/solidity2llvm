@@ -40,7 +40,8 @@
 #include <libsolidity/analysis/SyntaxChecker.h>
 #include <libsolidity/analysis/ViewPureChecker.h>
 #include <libsolidity/codegen/Compiler.h>
-#include <libsolidity/clang/ClangCompiler.h>
+#include <libsolidity/llvm/ClangCompiler.h>
+#include <libsolidity/llvm/LlvmCompiler.h>
 #include <libsolidity/formal/SMTChecker.h>
 #include <libsolidity/interface/ABI.h>
 #include <libsolidity/interface/Natspec.h>
@@ -433,6 +434,17 @@ string CompilerStack::clangString(string const& _contractName, StringMap _source
 		return string();
 }
 
+/// compile Solidity to LLVM IR
+string CompilerStack::llvmString(string const& _contractName, StringMap _sourceCodes) const
+{
+		Contract const& currentContract = contract(_contractName);
+		ContractDefinition const* contract = currentContract.contract;
+		if (currentContract.llvmCompiler)
+				return currentContract.llvmCompiler->llvmString(contract, _sourceCodes);
+		else
+				return string();
+}
+
 vector<string> CompilerStack::sourceNames() const
 {
 	vector<string> names;
@@ -729,6 +741,10 @@ void CompilerStack::compileContract(
 	// Clang Compiler
 	shared_ptr<ClangCompiler> clangCompiler = make_shared<ClangCompiler>();
 	compiledContract.clangCompiler = clangCompiler;
+
+	// Llvm Compiler
+	shared_ptr<LlvmCompiler> llvmCompiler = make_shared<LlvmCompiler>();
+	compiledContract.llvmCompiler = llvmCompiler;
 
 	string metadata = createMetadata(compiledContract);
 	bytes cborEncodedHash =

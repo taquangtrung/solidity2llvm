@@ -1,7 +1,7 @@
 #include <iostream>
 #include <boost/algorithm/string/join.hpp>
 
-#include "libsolidity/clang/ClangCompiler.h"
+#include "libsolidity/llvm/ClangCompiler.h"
 #include "libsolidity/ast/AST.h"
 #include <libsolidity/interface/Exceptions.h>
 #include <libdevcore/SHA3.h>

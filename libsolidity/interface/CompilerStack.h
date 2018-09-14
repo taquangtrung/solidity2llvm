@@ -65,6 +65,7 @@ class FunctionDefinition;
 class SourceUnit;
 class Compiler;
 class ClangCompiler;
+class LlvmCompiler;
 class GlobalContext;
 class Natspec;
 class Error;
@@ -224,6 +225,11 @@ public:
 	/// Prerequisite: Successful compilation.
 	std::string clangString(std::string const& _contractName, StringMap _sourceCodes = StringMap()) const;
 
+	/// @return a verbose text representation of the Clang IR
+	/// @arg _sourceCodes is the map of input files to source code strings
+	/// Prerequisite: Successful compilation.
+	std::string llvmString(std::string const& _contractName, StringMap _sourceCodes = StringMap()) const;
+
 	/// @returns a JSON representing the contract ABI.
 	/// Prerequisite: Successful call to parse or compile.
 	Json::Value const& contractABI(std::string const& _contractName) const;
@@ -262,6 +268,7 @@ private:
 		ContractDefinition const* contract = nullptr;
 		std::shared_ptr<Compiler> compiler;
 		std::shared_ptr<ClangCompiler> clangCompiler;
+		std::shared_ptr<LlvmCompiler> llvmCompiler;
 		eth::LinkerObject object;
 		eth::LinkerObject runtimeObject;
 		eth::LinkerObject cloneObject;

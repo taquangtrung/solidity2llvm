@@ -24,8 +24,12 @@ public:
 
 
 	void compileContract(const ContractDefinition* contract);
+
+	// compile declarations
+	llvm::Value* compileVarDecl(const VariableDeclaration* var);
 	llvm::Function* compileFunc(FunctionDefinition const* func);
 
+	// compile statements
 	llvm::Value* compileStmt(Statement const& stmt);
 	llvm::Value* compileStmt(InlineAssembly const* stmt);
 	llvm::Value* compileStmt(Block const* stmt);
@@ -42,7 +46,7 @@ public:
 	llvm::Value* compileStmt(VariableDeclarationStatement const* stmt);
 	llvm::Value* compileStmt(ExpressionStatement const* stmt);
 
-	// compile a contract to ClangAST
+	// compile expressions
 	llvm::Value* compileExp(Expression const* exp);
 	llvm::Value* compileExp(Conditional const* exp);
 	llvm::Value* compileExp(Assignment const* exp);

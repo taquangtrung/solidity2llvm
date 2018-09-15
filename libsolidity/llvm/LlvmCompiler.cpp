@@ -15,6 +15,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalVariable.h"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -430,7 +431,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // }
 
 /********************************************************
- *               Compile Declarations
+ *               Compile Contract
  ********************************************************/
 
 void LlvmCompiler::compileContract(const ContractDefinition* contract) {
@@ -445,19 +446,39 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// // for (const EnumDefinition* en: contract->definedStructs())
 	// // 	result = result + "\n\n" + compileStruct(st);
 
-	// // state variables
-	// for (const VariableDeclaration* var: contract->stateVariables())
-	// 	result = result + "\n\n" + compileVarDecl(var, 0);
-
+	// make contra
 	string contractName = contract->name();
-
 	CompilingModule =
 		llvm::make_unique<llvm::Module>(contractName, CompilingContext);
 
+	// global variables
+	for (const VariableDeclaration* var: contract->stateVariables())
+		compileVarDecl(var);
+
 	// functions
-	for (const FunctionDefinition* f: contract->definedFunctions())
-		compileFunc(f);
+	for (const FunctionDefinition* func: contract->definedFunctions())
+		compileFunc(func);
 }
+
+
+/********************************************************
+ *                Compile Declarations
+ ********************************************************/
+
+llvm::Value* LlvmCompiler::compileVarDecl(const VariableDeclaration* var) {
+	llvm::Type* type = compileTypePointer(var->type());
+	// llvm::Value* initVal = compileExp(var->value().get());
+	string name = var->name();
+
+	llvm::GlobalVariable* llvmVar =
+		new llvm::GlobalVariable(type, false,
+								 llvm::GlobalVariable::CommonLinkage,
+								 nullptr, name);
+	GlobalNamedValues[name] = llvmVar;
+	LogDebug("Compile Var Decl: " + name);
+	return llvmVar;
+}
+
 
 llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 	// prepare environment
@@ -1044,15 +1065,9 @@ string LlvmCompiler::stringOf(llvm::Value* value) {
 }
 
 llvm::Value* LlvmCompiler::findNamedValue(string name) {
-	try {
-	  return LocalNamedValues[name];
-	}
-	catch (const std::out_of_range& e) {
-		try {
-			return GlobalNamedValues[name];
-		}
-		catch (const std::out_of_range& e) {
-			return nullptr;
-		}
-	}
+	if (LocalNamedValues.find(name) != LocalNamedValues.end())
+		return LocalNamedValues[name];
+	else if (GlobalNamedValues.find(name) != GlobalNamedValues.end())
+		return GlobalNamedValues[name];
+	else return nullptr;
 }

@@ -24,8 +24,8 @@ public:
 	{ }
 
 
-	llvm::Value* compileContract(const ContractDefinition* contract);
-	llvm::Value* compileFunc(FunctionDefinition const* func);
+	void compileContract(const ContractDefinition* contract);
+	llvm::Function* compileFunc(FunctionDefinition const* func);
 
 	llvm::Value* compileStmt(Statement const& stmt);
 	llvm::Value* compileStmt(InlineAssembly const* stmt);
@@ -69,9 +69,11 @@ public:
 	llvm::Type* compileTypePointer(TypePointer type);
 
 	// compile a contract to string.
-	void compileContract(const ContractDefinition &contract, const bytes &metadata);
-
 	string llvmString(const ContractDefinition* contract, StringMap sourceCodes);
+
+	string printLlvmModule(llvm::Module& module);
+	string printLlvmFunc(llvm::Function& func);
+	string printLlvmBlock(llvm::BasicBlock& block);
 
 private:
 	const ContractDefinition* CompilingContract;

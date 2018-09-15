@@ -8,7 +8,6 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -17,6 +16,9 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Constants.h"
 
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/ArrayRef.h"
+
 
 using namespace std;
 using namespace dev;
@@ -24,9 +26,9 @@ using namespace dev::solidity;
 
 using BasicBlock = llvm::BasicBlock;
 
-static llvm::LLVMContext LlvmContext;
-static llvm::IRBuilder<> Builder(LlvmContext);
-static std::unique_ptr<llvm::Module> LlvmModule;
+static llvm::LLVMContext CompilingContext;
+static llvm::IRBuilder<> Builder(CompilingContext);
+static std::unique_ptr<llvm::Module> CompilingModule;
 static std::map<std::string, llvm::Value *> NamedValues;
 
 /// LogError* - These are little helper functions for error handling.
@@ -34,21 +36,21 @@ void LogError(const char *Str) {
 	fprintf(stderr, "Error: %s\n", Str);
 }
 
-void LlvmCompiler::compileContract(const ContractDefinition &contract, const bytes &metadata) {
-	(void)metadata;
-	cout << "RUNNING SEA COMPILER..." << endl;
-	auto functions = contract.definedFunctions();
-}
-
 /*
    _sourceCodes: maps name of a contract to its source code
  */
 string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
+	cout << "start to compile to LLVM IR..." << endl;
+
+
 	compilingSourceCodes = sourceCodes;
 
 	compileContract(contract);
 
-	return "LLVM IR STRING";
+    string result = "====== OUTPUT LLVM IR ======\n" +
+		printLlvmModule(*CompilingModule);
+
+	return result;
 
 	// // update global vars
 	// CompilingContract = contract;
@@ -603,49 +605,83 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
  *               Compile Declarations
  ********************************************************/
 
-llvm::Value* LlvmCompiler::compileContract(const ContractDefinition* contract) {
+void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
-		// // update global vars
-		// CompilingContract = contract;
-		// debug = true;
+	// // update global vars
+	// CompilingContract = contract;
+	// debug = true;
 
-		// cout << "== OUTPUT C CONTRACT == " << endl;
-		// string result = "";
+	// cout << "== OUTPUT C CONTRACT == " << endl;
+	// string result = "";
 
-		// // structs
-		// for (const StructDefinition* st: contract->definedStructs())
-		// 	result = result + "\n\n" + compileStructDecl(st);
+	// // structs
+	// for (const StructDefinition* st: contract->definedStructs())
+	// 	result = result + "\n\n" + compileStructDecl(st);
 
-		// // enum
-		// // for (const EnumDefinition* en: contract->definedStructs())
-		// // 	result = result + "\n\n" + compileStruct(st);
+	// // enum
+	// // for (const EnumDefinition* en: contract->definedStructs())
+	// // 	result = result + "\n\n" + compileStruct(st);
 
-		// // state variables
-		// for (const VariableDeclaration* var: contract->stateVariables())
-		// 	result = result + "\n\n" + compileVarDecl(var, 0);
+	// // state variables
+	// for (const VariableDeclaration* var: contract->stateVariables())
+	// 	result = result + "\n\n" + compileVarDecl(var, 0);
 
-		// functions
-		for (const FunctionDefinition* f: contract->definedFunctions())
-				compileFunc(f);
+	CompilingModule =
+		llvm::make_unique<llvm::Module>("smartcontract", CompilingContext);
 
-		return nullptr;
+
+	// functions
+	for (const FunctionDefinition* f: contract->definedFunctions())
+		compileFunc(f);
 }
 
-llvm::Value* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
-	llvm::Function *currFunc = LlvmModule->getFunction(func->name());
+llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
+	FunctionTypePointer funcType = func->functionType(false);
+
+	// function name
+	string funcName = func->name();
+
+	// compile returned type
+	auto returnTypes = funcType->returnParameterTypes();
+	llvm::Type* llvmRetType;
+	if (returnTypes.size() == 0)
+		llvmRetType = llvm::Type::getVoidTy(CompilingContext);
+	else if (returnTypes.size() == 1)
+		llvmRetType = compileTypePointer(returnTypes.at(0));
+	else {
+		// TODO: handle returned type tuple
+		LogError("CompileFunc: unknown returned function type");
+	}
+
+
+	// compile parameters' types
+	vector<llvm::Type*> llvmParamTypes;
+	for (auto p: func->parameters())
+		llvmParamTypes.push_back(compileTypePointer(p->type()));
+
+	llvm::FunctionType* llvmFuncType =
+		llvm::FunctionType::get(llvmRetType, llvmParamTypes, false);
+
+	llvm::Function *llvmFunc =
+		llvm::Function::Create(llvmFuncType, llvm::Function::CommonLinkage,
+							   funcName, CompilingModule.get());
 
 	// // already translated
-	// if (!currFunc)
-	// 	return currFunc;
+	// if (!llvmFunc)
+	// 	return llvmFunc;
 
 	// translate new function
-	BasicBlock *BB = BasicBlock::Create(LlvmContext, "entry", currFunc);
+	BasicBlock *BB = BasicBlock::Create(CompilingContext, "entry", llvmFunc);
 	Builder.SetInsertPoint(BB);
 
-	// 	string strBody = "";
-	// 	for (auto stmt: func->body().statements())
-	// 		strBody = strBody + compileStmt(*stmt, 1) + "\n";
+	llvm::Value* llvmStmt = nullptr;
+	for (auto s: func->body().statements())
+		llvmStmt = compileStmt(*s);
 
+	if (llvmStmt != nullptr) {
+		Builder.CreateRet(llvmStmt);
+		return llvmFunc;
+	}
 
 	return nullptr;
 }
@@ -700,16 +736,15 @@ llvm::Value* LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 }
 
 llvm::Value* LlvmCompiler::compileStmt(Block const* stmt) {
-	llvm::Function* currFunc = Builder.GetInsertBlock()->getParent();
+	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-	BasicBlock* block = BasicBlock::Create(LlvmContext, "block", currFunc);
+	BasicBlock* block = BasicBlock::Create(CompilingContext, "block", llvmFunc);
 	Builder.SetInsertPoint(block);
 
 	for (auto s : stmt->statements())
 		compileStmt(*s);
 
-
-	currFunc->getBasicBlockList().push_back(block);
+	llvmFunc->getBasicBlockList().push_back(block);
 	return nullptr;
 }
 
@@ -732,11 +767,11 @@ llvm::Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	// 	return result;
 
 	llvm::Value* condValue = compileExp(&(stmt->condition()));
-	llvm::Function* currFunc = Builder.GetInsertBlock()->getParent();
+	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-	BasicBlock* thenBlock = BasicBlock::Create(LlvmContext, "then", currFunc);
-	BasicBlock* elseBlock = BasicBlock::Create(LlvmContext, "else");
-	BasicBlock* mergeBlock = BasicBlock::Create(LlvmContext, "ifmerge");
+	BasicBlock* thenBlock = BasicBlock::Create(CompilingContext, "then", llvmFunc);
+	BasicBlock* elseBlock = BasicBlock::Create(CompilingContext, "else");
+	BasicBlock* mergeBlock = BasicBlock::Create(CompilingContext, "ifmerge");
 
 	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
 
@@ -967,7 +1002,7 @@ llvm::Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 llvm::Value* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	string funcName = *(exp->names().at(0));
 	cout << "FuncCall: FuncName: " << funcName << endl;
-	llvm::Function *callee = LlvmModule->getFunction(funcName);
+	llvm::Function *callee = CompilingModule->getFunction(funcName);
 
 	vector<llvm::Value*> arguments;
 	for (auto arg : exp->arguments())
@@ -1020,7 +1055,7 @@ llvm::Value* LlvmCompiler::compileExp(Literal const *exp) {
  *                     Compile types
  ********************************************************/
 
-llvm::Type* compileTypeName(TypeName const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(TypeName const* type) {
 	if (auto t = dynamic_cast<ElementaryTypeName const*>(type)) {
 		if (t != nullptr) return compileTypeName(t);
 	}
@@ -1039,35 +1074,35 @@ llvm::Type* compileTypeName(TypeName const* type) {
 	return nullptr;
 }
 
-llvm::Type* compileTypeName(ElementaryTypeName const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(ElementaryTypeName const* type) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Type* compileTypeName(UserDefinedTypeName const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(UserDefinedTypeName const* type) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Type* compileTypeName(FunctionTypeName const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(FunctionTypeName const* type) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Type* compileTypeName(Mapping const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(Mapping const* type) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Type* compileTypeName(ArrayTypeName const* type) {
+llvm::Type* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Type* compileTypePointer(TypePointer type) {
+llvm::Type* LlvmCompiler::compileTypePointer(TypePointer type) {
 	if (auto intType = dynamic_pointer_cast<IntegerType const>(type)) {
 		if (intType != nullptr)
-			return llvm::IntegerType::get(LlvmContext, intType->numBits());
+			return llvm::IntegerType::get(CompilingContext, intType->numBits());
 	}
 	// else if (dynamic_pointer_cast<FixedPointType const>(type) != nullptr)
 	// 	result = "int";
@@ -1104,4 +1139,35 @@ llvm::Type* compileTypePointer(TypePointer type) {
 	// else result = "(Unknown Type)";
 
 	return nullptr;
+}
+
+
+/********************************************************
+ *                Supporting Functions
+ ********************************************************/
+
+string LlvmCompiler::printLlvmModule(llvm::Module& module) {
+	string result = "";
+	for (auto func = module.begin(); func != module.end(); ++func)
+		result = result + "\n**************\n\n" + printLlvmFunc(*func);
+	return result;
+}
+
+string LlvmCompiler::printLlvmFunc(llvm::Function& func) {
+	string result = "";
+	for (auto block = func.begin(); block != func.end(); ++block) {
+		result = result + printLlvmBlock(*block) + "\n\n";
+	}
+	return result;
+}
+
+string LlvmCompiler::printLlvmBlock(llvm::BasicBlock& block) {
+	string result = "";
+	for (auto inst = block.begin(); inst != block.end(); ++inst) {
+		string strInst;
+		llvm::raw_string_ostream rso(strInst);
+		inst->print(rso);
+		result = result + strInst + "\n";
+	}
+	return result;
 }

@@ -19,7 +19,6 @@ class LlvmCompiler {
 
 public:
 	explicit LlvmCompiler():
-	debug(false),
 	CompilingContract(nullptr)
 	{ }
 
@@ -71,14 +70,16 @@ public:
 	// compile a contract to string.
 	string llvmString(const ContractDefinition* contract, StringMap sourceCodes);
 
-	string printLlvmModule(llvm::Module& module);
-	string printLlvmFunc(llvm::Function& func);
-	string printLlvmBlock(llvm::BasicBlock& block);
+	// supporting functions
+	string stringOf(llvm::Module* module);
+	string stringOf(llvm::Function* func);
+	string stringOf(llvm::BasicBlock* block);
+	string stringOf(llvm::Value* value);
+	llvm::Value* findNamedValue(string name);
 
 private:
 	const ContractDefinition* CompilingContract;
 	StringMap compilingSourceCodes;
-	bool debug;
 
 };
 

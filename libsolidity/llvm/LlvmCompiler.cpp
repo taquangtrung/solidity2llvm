@@ -12,6 +12,8 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Constants.h"
 
@@ -20,9 +22,11 @@ using namespace std;
 using namespace dev;
 using namespace dev::solidity;
 
-static llvm::LLVMContext TheContext;
-static llvm::IRBuilder<> Builder(TheContext);
-static std::unique_ptr<llvm::Module> TheModule;
+using BasicBlock = llvm::BasicBlock;
+
+static llvm::LLVMContext LlvmContext;
+static llvm::IRBuilder<> Builder(LlvmContext);
+static std::unique_ptr<llvm::Module> LlvmModule;
 static std::map<std::string, llvm::Value *> NamedValues;
 
 /// LogError* - These are little helper functions for error handling.
@@ -42,7 +46,7 @@ void LlvmCompiler::compileContract(const ContractDefinition &contract, const byt
 string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
 	compilingSourceCodes = sourceCodes;
 
-	transContract(contract);
+	compileContract(contract);
 
 	return "LLVM IR STRING";
 
@@ -596,10 +600,10 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 
 
 /********************************************************
- *           Compile declarations to Clang AST
+ *               Compile Declarations
  ********************************************************/
 
-llvm::Value* LlvmCompiler::transContract(const ContractDefinition* contract) {
+llvm::Value* LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 		// // update global vars
 		// CompilingContract = contract;
@@ -622,188 +626,244 @@ llvm::Value* LlvmCompiler::transContract(const ContractDefinition* contract) {
 
 		// functions
 		for (const FunctionDefinition* f: contract->definedFunctions())
-				transFunc(f);
+				compileFunc(f);
 
 		return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transFunc(const FunctionDefinition* func) {
-		return nullptr;
+llvm::Value* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
+	llvm::Function *currFunc = LlvmModule->getFunction(func->name());
+
+	// // already translated
+	// if (!currFunc)
+	// 	return currFunc;
+
+	// translate new function
+	BasicBlock *BB = BasicBlock::Create(LlvmContext, "entry", currFunc);
+	Builder.SetInsertPoint(BB);
+
+	// 	string strBody = "";
+	// 	for (auto stmt: func->body().statements())
+	// 		strBody = strBody + compileStmt(*stmt, 1) + "\n";
+
+
+	return nullptr;
 }
 
 /********************************************************
- *           Compile statements to Clang AST
+ *                 Compile Statements
  ********************************************************/
 
-llvm::Value* LlvmCompiler::transStmt(Statement const& stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Block const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<BreakableStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Continue const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Break const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Return const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Throw const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
-		if (s != nullptr) return transStmt(s);
+		if (s != nullptr) return compileStmt(s);
 	}
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(InlineAssembly const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(Block const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Block const* stmt) {
+	llvm::Function* currFunc = Builder.GetInsertBlock()->getParent();
+
+	BasicBlock* block = BasicBlock::Create(LlvmContext, "block", currFunc);
+	Builder.SetInsertPoint(block);
+
 	for (auto s : stmt->statements())
-		transStmt(*s);
+		compileStmt(*s);
+
+
+	currFunc->getBasicBlockList().push_back(block);
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(PlaceholderStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(IfStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
+	// 	string strIndent = createIndent(indent);
+	// 	string strCond = compileExp(&(stmt->condition()));
+	// 	string strTrue = compileStmt(stmt->trueStatement(), indent);
+	// 	Statement const* falseStmt = stmt->falseStatement();
+	// 	string result =
+	// 		strIndent + "if (" + strCond + ")\n" + strTrue;
+	// 	if (falseStmt != nullptr) {
+	// 		string strFalse = compileStmt(*(falseStmt), indent);
+	// 		result = result + strIndent + "else\n" + strFalse;
+	// 	}
+	// 	return result;
+
+	llvm::Value* condValue = compileExp(&(stmt->condition()));
+	llvm::Function* currFunc = Builder.GetInsertBlock()->getParent();
+
+	BasicBlock* thenBlock = BasicBlock::Create(LlvmContext, "then", currFunc);
+	BasicBlock* elseBlock = BasicBlock::Create(LlvmContext, "else");
+	BasicBlock* mergeBlock = BasicBlock::Create(LlvmContext, "ifmerge");
+
+	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
+
+	llvm::Value* thenValue = compileStmt(stmt->trueStatement());
+	Builder.SetInsertPoint(thenBlock);
+
+	// Builder.CreateBr(mergeBlock);
+	// llvm::Value* elseValue = compileStmt(stmt->falseStatement());
+	// if (elseValue != nullptr) {
+
+	// }
+
+	// llvm::PHINode* phiNode = Builder.CreatePHI()
+
+
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(BreakableStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(BreakableStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(WhileStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(ForStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(ForStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(Continue const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Continue const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(Break const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Break const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(Return const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Return const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(Throw const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(Throw const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(EmitStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(EmitStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(VariableDeclarationStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transStmt(ExpressionStatement const* stmt) {
+llvm::Value* LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
 	// TODO
-	transExp(&(stmt->expression()));
+	compileExp(&(stmt->expression()));
 	return nullptr;
 }
 
 /********************************************************
- *           Compile expressions to Clang AST
+ *                Compile Expressions
  ********************************************************/
 
-llvm::Value* LlvmCompiler::transExp(Expression const* exp) {
+llvm::Value* LlvmCompiler::compileExp(Expression const* exp) {
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<Assignment const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<TupleExpression const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<UnaryOperation const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<BinaryOperation const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<FunctionCall const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<NewExpression const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<MemberAccess const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<IndexAccess const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
-		if (e != nullptr) return transExp(e);
+		if (e != nullptr) return compileExp(e);
 	}
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(Conditional const* exp) {
+llvm::Value* LlvmCompiler::compileExp(Conditional const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(Assignment const* exp) {
-	llvm::Value* lhs = transExp(&(exp->leftHandSide()));
-	llvm::Value* rhs = transExp(&(exp->rightHandSide()));
+llvm::Value* LlvmCompiler::compileExp(Assignment const* exp) {
+	llvm::Value* lhs = compileExp(&(exp->leftHandSide()));
+	llvm::Value* rhs = compileExp(&(exp->rightHandSide()));
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(TupleExpression const* exp) {
+llvm::Value* LlvmCompiler::compileExp(TupleExpression const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(UnaryOperation const* exp) {
-	llvm::Value* subExp = transExp(&(exp->subExpression()));
+llvm::Value* LlvmCompiler::compileExp(UnaryOperation const* exp) {
+	llvm::Value* subExp = compileExp(&(exp->subExpression()));
 	if (!subExp) return nullptr;
 
 	Token::Value op = exp->getOperator();
@@ -831,18 +891,18 @@ llvm::Value* LlvmCompiler::transExp(UnaryOperation const* exp) {
 	}
 
 	case Token::Delete:
-		LogError("transExp: UnaryOp: unhandled Delete");
+		LogError("compileExp: UnaryOp: unhandled Delete");
 		return nullptr;
 
 	default:
-		LogError("transExp: UnaryOp: unknown operator");
+		LogError("compileExp: UnaryOp: unknown operator");
 		return nullptr;
 	}
 }
 
-llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
-	llvm::Value* lhs = transExp(&(exp->leftExpression()));
-	llvm::Value* rhs = transExp(&(exp->rightExpression()));
+llvm::Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
+	llvm::Value* lhs = compileExp(&(exp->leftExpression()));
+	llvm::Value* rhs = compileExp(&(exp->rightExpression()));
 	if (!lhs || !rhs) return nullptr;
 
 	Token::Value op = exp->getOperator();
@@ -851,7 +911,7 @@ llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
 	// TODO: there might be different type of IR Exps for the same token
 
 	case Token::Comma:
-		LogError("transExp: BinaryOp: need to support Comma Exp");
+		LogError("compileExp: BinaryOp: need to support Comma Exp");
 		return nullptr;
 
 	case Token::Or:
@@ -873,7 +933,7 @@ llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
 		return Builder.CreateShl(lhs, rhs, "Shl");
 
 	case Token::SAR:
-		LogError("transExp: BinaryOp: need to support SAR");
+		LogError("compileExp: BinaryOp: need to support SAR");
 		return nullptr;
 
 	case Token::SHR:
@@ -895,51 +955,153 @@ llvm::Value* LlvmCompiler::transExp(BinaryOperation const* exp) {
 		return Builder.CreateURem(lhs, rhs, "Rem");
 
 	case Token::Exp:
-		LogError("transExp: BinaryOp: unhandled Exponential Exp");
+		LogError("compileExp: BinaryOp: unhandled Exponential Exp");
 		return nullptr;
 
 	default:
-		LogError("transExp: BinaryOp: unknown operator");
+		LogError("compileExp: BinaryOp: unknown operator");
 		return nullptr;
 	}
 }
 
-llvm::Value* LlvmCompiler::transExp(FunctionCall const* exp) {
+llvm::Value* LlvmCompiler::compileExp(FunctionCall const* exp) {
+	string funcName = *(exp->names().at(0));
+	cout << "FuncCall: FuncName: " << funcName << endl;
+	llvm::Function *callee = LlvmModule->getFunction(funcName);
+
+	vector<llvm::Value*> arguments;
+	for (auto arg : exp->arguments())
+		arguments.push_back(compileExp((&arg)->get()));
+
+	if (callee->arg_size() != arguments.size()) {
+		LogError("compileExp: FunctionCall: mistmatch arguments");
+		return nullptr;
+	}
+
+	return Builder.CreateCall(callee, arguments, "functioncall");
+}
+
+llvm::Value* LlvmCompiler::compileExp(NewExpression const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(NewExpression const* exp) {
+llvm::Value* LlvmCompiler::compileExp(MemberAccess const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(MemberAccess const* exp) {
+llvm::Value* LlvmCompiler::compileExp(IndexAccess const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(IndexAccess const* exp) {
+llvm::Value* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(PrimaryExpression const* exp) {
+llvm::Value* LlvmCompiler::compileExp(Identifier const *exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(Identifier const *exp) {
+llvm::Value* LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(ElementaryTypeNameExpression const *exp) {
+llvm::Value* LlvmCompiler::compileExp(Literal const *exp) {
 	// TODO
 	return nullptr;
 }
 
-llvm::Value* LlvmCompiler::transExp(Literal const *exp) {
+/********************************************************
+ *                     Compile types
+ ********************************************************/
+
+llvm::Type* compileTypeName(TypeName const* type) {
+	if (auto t = dynamic_cast<ElementaryTypeName const*>(type)) {
+		if (t != nullptr) return compileTypeName(t);
+	}
+	if (auto t = dynamic_cast<UserDefinedTypeName const*>(type)) {
+		if (t != nullptr) return compileTypeName(t);
+	}
+	if (auto t = dynamic_cast<FunctionTypeName const*>(type)) {
+		if (t != nullptr) return compileTypeName(t);
+	}
+	if (auto t = dynamic_cast<Mapping const*>(type)) {
+		if (t != nullptr) return compileTypeName(t);
+	}
+	if (auto t = dynamic_cast<ArrayTypeName const*>(type)) {
+		if (t != nullptr) return compileTypeName(t);
+	}
+	return nullptr;
+}
+
+llvm::Type* compileTypeName(ElementaryTypeName const* type) {
 	// TODO
+	return nullptr;
+}
+
+llvm::Type* compileTypeName(UserDefinedTypeName const* type) {
+	// TODO
+	return nullptr;
+}
+
+llvm::Type* compileTypeName(FunctionTypeName const* type) {
+	// TODO
+	return nullptr;
+}
+
+llvm::Type* compileTypeName(Mapping const* type) {
+	// TODO
+	return nullptr;
+}
+
+llvm::Type* compileTypeName(ArrayTypeName const* type) {
+	// TODO
+	return nullptr;
+}
+
+llvm::Type* compileTypePointer(TypePointer type) {
+	if (auto intType = dynamic_pointer_cast<IntegerType const>(type)) {
+		if (intType != nullptr)
+			return llvm::IntegerType::get(LlvmContext, intType->numBits());
+	}
+	// else if (dynamic_pointer_cast<FixedPointType const>(type) != nullptr)
+	// 	result = "int";
+	// else if (dynamic_pointer_cast<RationalNumberType const>(type) != nullptr)
+	// 	result = "ratio";
+	// else if (dynamic_pointer_cast<StringLiteralType const>(type) != nullptr)
+	// 	result = "string";
+	// else if (dynamic_pointer_cast<FixedBytesType const>(type) != nullptr)
+	// 	result = "char*";
+	// else if (dynamic_pointer_cast<BoolType const>(type) != nullptr)
+	// 	result = "bool";
+	// else if (dynamic_pointer_cast<ReferenceType const>(type) != nullptr)
+	// 	result = "reference";
+	// else if (dynamic_pointer_cast<ContractType const>(type) != nullptr)
+	// 	result = "contract";
+	// else if (dynamic_pointer_cast<EnumType const>(type) != nullptr)
+	// 	result = "enum";
+	// else if (dynamic_pointer_cast<TupleType const>(type) != nullptr)
+	// 	result = "tuple";
+	// else if (dynamic_pointer_cast<FunctionType const>(type) != nullptr)
+	// 	result = "function";
+	// else if (dynamic_pointer_cast<MappingType const>(type) != nullptr)
+	// 	result = "mapping";
+	// else if (dynamic_pointer_cast<TypeType const>(type) != nullptr)
+	// 	result = "(TypeType)";
+	// else if (dynamic_pointer_cast<ModifierType const>(type) != nullptr)
+	// 	result = "(ModifierType)";
+	// else if (dynamic_pointer_cast<ModuleType const>(type) != nullptr)
+	// 	result = "(ModuleType)";
+	// else if (dynamic_pointer_cast<MagicType const>(type) != nullptr)
+	// 	result = "(MagicType)";
+	// else if (dynamic_pointer_cast<InaccessibleDynamicType const>(type) != nullptr)
+	// 	result = "(InaccessibleDynamicType)";
+	// else result = "(Unknown Type)";
+
 	return nullptr;
 }

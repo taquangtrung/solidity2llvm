@@ -726,8 +726,8 @@ llvm::Type* LlvmCompiler::compileTypeName(TypeName const* type) {
 }
 
 llvm::Type* LlvmCompiler::compileTypeName(ElementaryTypeName const* type) {
-	// TODO
-	return nullptr;
+	TypePointer ty = Type::fromElementaryTypeName(type->typeName());
+	return compileTypePointer(ty);
 }
 
 llvm::Type* LlvmCompiler::compileTypeName(UserDefinedTypeName const* type) {

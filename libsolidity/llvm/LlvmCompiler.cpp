@@ -8,25 +8,26 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/GlobalVariable.h"
+
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 
 
 using namespace std;
 using namespace dev;
 using namespace dev::solidity;
 
-static llvm::LLVMContext CompilingContext;
-static llvm::IRBuilder<> Builder(CompilingContext);
+static llvm::LLVMContext Context;
+static llvm::IRBuilder<> Builder(Context);
 static std::unique_ptr<llvm::Module> CompilingModule;
 static std::map<std::string, llvm::Value *> GlobalNamedValues;
 static std::map<std::string, llvm::Value *> LocalNamedValues;
@@ -35,7 +36,7 @@ bool debug = true;
 
 /// LogError* - These are little helper functions for error handling.
 void LogError(const char *msg) {
-	fprintf(stderr, "Error: %s\n", msg);
+	fprintf(stderr, "\n!!!Error: %s\n", msg);
 }
 
 void LogDebug(string msg) {
@@ -231,59 +232,11 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // }
 
 
-// /********************************************************
-//  *                 Compile expressions
-//  ********************************************************/
-
-// string LlvmCompiler::compileExp(Expression const* exp) {
-// 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<Assignment const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<TupleExpression const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<UnaryOperation const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<BinaryOperation const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<FunctionCall const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<NewExpression const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<MemberAccess const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<IndexAccess const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
-// 		if (e != nullptr) return compileExp(e);
-// 	}
-// 	return "(Unknown Expression)";
-// }
-
-// string LlvmCompiler::compileExp(Conditional const* exp) {
-// 	string result = "(Conditional)";
-// 	return result;
-// }
-
 // string LlvmCompiler::compileExp(Assignment const* exp) {
 // 	string lhs = compileExp(&(exp->leftHandSide()));
 // 	string op = compileOperator((exp->assignmentOperator()));
 // 	string rhs = compileExp(&(exp->rightHandSide()));
 // 	return lhs + " " + op + " " + rhs;
-// }
-
-// string LlvmCompiler::compileExp(TupleExpression const* exp) {
-// 	string result = "(TupleExpression)";
-// 	return result;
 // }
 
 // string LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -449,7 +402,7 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// make contra
 	string contractName = contract->name();
 	CompilingModule =
-		llvm::make_unique<llvm::Module>(contractName, CompilingContext);
+		llvm::make_unique<llvm::Module>(contractName, Context);
 
 	// global variables
 	for (const VariableDeclaration* var: contract->stateVariables())
@@ -493,7 +446,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 	auto returnTypes = funcType->returnParameterTypes();
 	llvm::Type* llvmRetType;
 	if (returnTypes.size() == 0)
-		llvmRetType = llvm::Type::getVoidTy(CompilingContext);
+		llvmRetType = llvm::Type::getVoidTy(Context);
 	else if (returnTypes.size() == 1)
 		llvmRetType = compileTypePointer(returnTypes.at(0));
 	else {
@@ -523,7 +476,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 
 	// translate new function
 	llvm::BasicBlock *block =
-		llvm::BasicBlock::Create(CompilingContext, "entry", llvmFunc);
+		llvm::BasicBlock::Create(Context, "entry", llvmFunc);
 	Builder.SetInsertPoint(block);
 
 	for (auto stmt: func->body().statements())
@@ -586,7 +539,7 @@ llvm::Value* LlvmCompiler::compileStmt(Block const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
 	llvm::BasicBlock* block =
-		llvm::BasicBlock::Create(CompilingContext, "block", llvmFunc);
+		llvm::BasicBlock::Create(Context, "block", llvmFunc);
 	Builder.SetInsertPoint(block);
 
 	for (auto s : stmt->statements())
@@ -619,11 +572,11 @@ llvm::Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
 	llvm::BasicBlock* thenBlock =
-		llvm::BasicBlock::Create(CompilingContext, "then", llvmFunc);
+		llvm::BasicBlock::Create(Context, "then", llvmFunc);
 	llvm::BasicBlock* elseBlock =
-		llvm::BasicBlock::Create(CompilingContext, "else");
+		llvm::BasicBlock::Create(Context, "else");
 	llvm::BasicBlock* mergeBlock =
-		llvm::BasicBlock::Create(CompilingContext, "ifmerge");
+		llvm::BasicBlock::Create(Context, "ifmerge");
 
 	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
 
@@ -748,6 +701,10 @@ llvm::Value* LlvmCompiler::compileExp(Assignment const* exp) {
 	LogDebug("compileExp: Assignment\n");
 	llvm::Value* lhs = compileExp(&(exp->leftHandSide()));
 	llvm::Value* rhs = compileExp(&(exp->rightHandSide()));
+	if (lhs == nullptr)
+		LogError("compileExp: Assignment: null lhs");
+	if (rhs == nullptr)
+		LogError("compileExp: Assignment: null rhs");
 	return Builder.CreateStore(rhs, lhs);
 }
 
@@ -766,21 +723,21 @@ llvm::Value* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 
 	switch (op) {
 	case Token::Not:
-		return Builder.CreateNot(subExp, "Not");
+		return Builder.CreateNot(subExp, "not_tmp");
 
 	case Token::BitNot:
-		return Builder.CreateNot(subExp, "BitNot");
+		return Builder.CreateNot(subExp, "bitnot_tmp");
 
 	case Token::Inc: {
 		llvm::Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateAdd(subExp, one, "Inc");
+		auto newExp = Builder.CreateAdd(subExp, one, "inc_tmp");
 		auto storeExp = Builder.CreateStore(newExp, subExp);
 		return storeExp;
 	}
 
 	case Token::Dec: {
 		llvm::Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateSub(subExp, one, "Dec");
+		auto newExp = Builder.CreateSub(subExp, one, "dec_tmp");
 		auto storeExp = Builder.CreateStore(newExp, subExp);
 		return storeExp;
 	}
@@ -810,44 +767,44 @@ llvm::Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 		return nullptr;
 
 	case Token::Or:
-		return Builder.CreateOr(lhs, rhs, "Or");
+		return Builder.CreateOr(lhs, rhs, "or_tmp");
 
 	case Token::And:
-		return Builder.CreateOr(lhs, rhs, "And");
+		return Builder.CreateOr(lhs, rhs, "and_tmp");
 
 	case Token::BitOr:
-		return Builder.CreateOr(lhs, rhs, "BitOr");
+		return Builder.CreateOr(lhs, rhs, "bitor_tmp");
 
 	case Token::BitXor:
-		return Builder.CreateXor(lhs, rhs, "BitXor");
+		return Builder.CreateXor(lhs, rhs, "bitxor_tmp");
 
 	case Token::BitAnd:
-		return Builder.CreateXor(lhs, rhs, "BitAnd");
+		return Builder.CreateXor(lhs, rhs, "bitand_tmp");
 
 	case Token::SHL:
-		return Builder.CreateShl(lhs, rhs, "Shl");
+		return Builder.CreateShl(lhs, rhs, "shl_tmp");
 
 	case Token::SAR:
 		LogError("compileExp: BinaryOp: need to support SAR");
 		return nullptr;
 
 	case Token::SHR:
-		return Builder.CreateLShr(lhs, rhs, "Shr");
+		return Builder.CreateLShr(lhs, rhs, "shr_tmp");
 
 	case Token::Add:
-		return Builder.CreateAdd(lhs, rhs, "Add");
+		return Builder.CreateAdd(lhs, rhs, "add_tmp");
 
 	case Token::Sub:
-		return Builder.CreateSub(lhs, rhs, "Sub");
+		return Builder.CreateSub(lhs, rhs, "sub_tmp");
 
 	case Token::Mul:
-		return Builder.CreateMul(lhs, rhs, "Mul");
+		return Builder.CreateMul(lhs, rhs, "mul_tmp");
 
 	case Token::Div:
-		return Builder.CreateUDiv(lhs, rhs, "Div");
+		return Builder.CreateUDiv(lhs, rhs, "div_tmp");
 
 	case Token::Mod:
-		return Builder.CreateURem(lhs, rhs, "Rem");
+		return Builder.CreateURem(lhs, rhs, "rem_tmp");
 
 	case Token::Exp:
 		LogError("compileExp: BinaryOp: unhandled Exponential Exp");
@@ -923,8 +880,28 @@ llvm::Value* LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
 }
 
 llvm::Value* LlvmCompiler::compileExp(Literal const *exp) {
-	// TODO
-	return nullptr;
+	// Literal types can be one of the following:
+	// TrueLiteral, FalseLiteral, Number, StringLiteral, and CommentLiteral
+	string content = exp->value();
+	switch (exp->token()) {
+	case Token::StringLiteral:
+		return llvm::ConstantDataArray::getString(Context, content);
+	case Token::TrueLiteral:
+		return llvm::ConstantInt::getTrue(Context);
+	case Token::FalseLiteral:
+		return llvm::ConstantInt::getFalse(Context);
+	case Token::Number: {
+		// FIXME: temporarily fix to 64 bit, signed integer
+		llvm::IntegerType* intTyp = llvm::IntegerType::get(Context, 64);
+		return llvm::ConstantInt::get(intTyp, atoi(content.data()), true);
+	}
+	case Token::CommentLiteral:
+		LogError("compileExp: CommentLiteral: unhandled");
+		return nullptr;
+	default:
+		LogError("compileExp: Literal: unknown token");
+		return nullptr;
+	}
 }
 
 /********************************************************
@@ -978,7 +955,7 @@ llvm::Type* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 llvm::Type* LlvmCompiler::compileTypePointer(TypePointer type) {
 	if (auto intType = dynamic_pointer_cast<IntegerType const>(type)) {
 		if (intType != nullptr)
-			return llvm::IntegerType::get(CompilingContext, intType->numBits());
+			return llvm::IntegerType::get(Context, intType->numBits());
 	}
 	// else if (dynamic_pointer_cast<FixedPointType const>(type) != nullptr)
 	// 	result = "int";

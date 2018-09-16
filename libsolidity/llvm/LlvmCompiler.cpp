@@ -2,24 +2,9 @@
 #include <boost/algorithm/string/join.hpp>
 
 #include "libsolidity/llvm/LlvmCompiler.h"
-#include "libsolidity/ast/AST.h"
 #include <libsolidity/interface/Exceptions.h>
 #include <libdevcore/SHA3.h>
 
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Type.h"
-
-
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringRef.h"
 
 
 using namespace std;
@@ -36,7 +21,7 @@ static std::map<std::string, Value *> LocalNamedValues;
 
 bool debug = true;
 
-/// LogError* - These are little helper functions for error handling.
+
 void LogError(const char *msg) {
 	fprintf(stderr, "\n!!!Error: %s\n", msg);
 	exit (1);
@@ -53,12 +38,11 @@ void LogDebug(string msg) {
 string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
 	cout << "start to compile to LLVM IR..." << endl;
 
-
 	compilingSourceCodes = sourceCodes;
 
 	compileContract(contract);
 
-    cout << "====== OUTPUT LLVM IR ======\n";
+	cout << "====== OUTPUT LLVM IR ======\n";
 	CompilingModule->print(llvm::outs(), nullptr);
 
 	return "";
@@ -75,65 +59,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // 	return result;
 // }
 
-// string LlvmCompiler::compileVarDecl(const VariableDeclaration* var, int indent) {
-// 	return createIndent(indent) + compileTypeName(var->typeName())
-// 			+ " " + var->name() + ";";
-// }
-
-// string LlvmCompiler::compileVarDecl(VariableDeclaration& var, const Expression* value, int indent) {
-// 	return createIndent(indent) + compileTypeName(var.typeName())
-// 		+ " " + var.name() + " " + compileExp(value) + ";";
-// }
-
-// /*****************************************************
-//  *                Compile statements
-//  *****************************************************/
-
-// string LlvmCompiler::compileStmt(Statement const& stmt, int indent) {
-// 	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<Block const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<BreakableStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<Continue const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<Break const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<Return const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<Throw const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
-// 		if (s != nullptr) return compileStmt(s, indent);
-// 	}
-// 	return "(Unknown Statement)";
-// }
-
-// string LlvmCompiler::compileStmt(InlineAssembly const* stmt, int indent) {
-// 	// TODO
-// 	return "(InlineAssembly)\n";
-// }
-
 // string LlvmCompiler::compileStmt(Block const* stmt, int indent) {
 // 	string strIndent = createIndent(indent);
 // 	string result = strIndent + "{\n" ;
@@ -141,11 +66,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // 		result = result + compileStmt(*s, indent + 1) + "\n";
 // 	result = result + strIndent + "}" ;
 // 	return result;
-// }
-
-// string LlvmCompiler::compileStmt(PlaceholderStatement const* stmt, int indent) {
-// 	// TODO
-// 	return "(PlaceholderStatement)";
 // }
 
 // string LlvmCompiler::compileStmt(IfStatement const* stmt, int indent) {
@@ -191,85 +111,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // 	return result;
 // }
 
-// string LlvmCompiler::compileStmt(Continue const* stmt, int indent) {
-// 	string strIndent = createIndent(indent);
-// 	return strIndent + "continue;";
-// }
-
-// string LlvmCompiler::compileStmt(Break const* stmt, int indent) {
-// 	string strIndent = createIndent(indent);
-// 	return strIndent + "break;";
-// }
-
-// string LlvmCompiler::compileStmt(Return const* stmt, int indent) {
-// 	string strIndent = createIndent(indent);
-// 	return strIndent + "return " + compileExp(stmt->expression()) + ";";
-// }
-
-// string LlvmCompiler::compileStmt(Throw const* stmt, int indent) {
-// 	// TODO
-// 	return "(Unhandled Throw Statement)";
-// }
-
-// string LlvmCompiler::compileStmt(EmitStatement const* stmt, int indent) {
-// 	// TODO
-// 	return "(Unhandled Emit Statement)";
-// }
-
-// string LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt, int indent) {
-// 	auto vars = stmt->declarations();
-// 	string result = "";
-// 	if (vars.size() == 1)
-// 		result = compileVarDecl(*(vars.at(0)), stmt->initialValue(), indent);
-// 	else
-// 		result = "(Unhandled VariableDeclarationStatement)";
-// 	return result;
-// }
-
-// string LlvmCompiler::compileStmt(ExpressionStatement const* stmt, int indent) {
-// 	string result =
-// 		createIndent(indent) + compileExp(&(stmt->expression())) + ";";
-// 	// if (debug)
-// 	// 	result = "(ExpressionStatement: " + result +")";
-// 	return result;
-// }
-
-
-// string LlvmCompiler::compileExp(Assignment const* exp) {
-// 	string lhs = compileExp(&(exp->leftHandSide()));
-// 	string op = compileOperator((exp->assignmentOperator()));
-// 	string rhs = compileExp(&(exp->rightHandSide()));
-// 	return lhs + " " + op + " " + rhs;
-// }
-
-// string LlvmCompiler::compileExp(UnaryOperation const* exp) {
-// 	string strOp = compileOperator(exp->getOperator());
-// 	const Expression* subExp = &(exp->subExpression());
-// 	string strSubExp = compileExp(subExp);
-// 	if (!isSimpleExp(subExp))
-// 		strSubExp = "(" + strSubExp + ")";
-// 	string result = strOp + strSubExp;
-// 	// if (debug)
-// 	// 	result = "(UnaryOperation: " + result + ")";
-// 	return result;
-// }
-
-// string LlvmCompiler::compileExp(BinaryOperation const* exp) {
-// 	string strOp = compileOperator(exp->getOperator());
-// 	const Expression* leftExp = &(exp->leftExpression());
-// 	string strLeftExp = compileExp(leftExp);
-// 	if (!isSimpleExp(leftExp))
-// 		strLeftExp = "(" + strLeftExp + ")";
-// 	const Expression* rightExp = &(exp->rightExpression());
-// 	string strRightExp = compileExp(rightExp);
-// 	if (!isSimpleExp(rightExp))
-// 		strRightExp = "(" + strRightExp + ")";
-// 	string result = strLeftExp + " " + strOp + " " + strRightExp;
-// 	// if (debug)
-// 	// 	result = "(BinaryOperation: " + result + ")";
-// 	return result;
-// }
-
 // string LlvmCompiler::compileExp(FunctionCall const* exp) {
 // 	string strFunc = compileExp(&(exp->expression()));
 // 	vector<string> strArgs;
@@ -310,58 +151,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 // 	return exp->typeName().toString();
 // }
 
-// /************************************************************
-//  *                Compile Other Constructs
-//  ************************************************************/
-
-// string LlvmCompiler::compileOperator(Token::Value op) {
-// 	switch (op) {
-// 	// unary operators
-// 	case Token::Not: return "!";
-// 	case Token::BitNot: return "~";
-// 	case Token::Inc: return "++";
-// 	case Token::Dec: return "--";
-// 	case Token::Delete: return "delete";
-// 	// binary op
-// 	case Token::Comma: return ",";
-// 	case Token::Or: return "||";
-// 	case Token::And: return "&&";
-// 	case Token::BitOr: return "|";
-// 	case Token::BitXor: return "^";
-// 	case Token::BitAnd: return "&";
-// 	case Token::SHL: return "<<";
-// 	case Token::SAR: return ">>";
-// 	case Token::SHR: return ">>>";
-// 	case Token::Add: return "+";
-// 	case Token::Sub: return "-";
-// 	case Token::Mul: return "*";
-// 	case Token::Div: return "/";
-// 	case Token::Mod: return "%";
-// 	case Token::Exp: return "**";
-// 	// comparison
-// 	case Token::Equal: return "==";
-// 	case Token::NotEqual: return "!=";
-// 	case Token::LessThan: return "<";
-// 	case Token::GreaterThan: return ">";
-// 	case Token::LessThanOrEqual: return "<=";
-// 	case Token::GreaterThanOrEqual: return ">=";
-// 	// assigment
-// 	case Token::Assign: return "=";
-// 	case Token::AssignBitOr: return "|=";
-// 	case Token::AssignBitXor: return "^=";
-// 	case Token::AssignBitAnd: return "&=";
-// 	case Token::AssignShl: return "<<=";
-// 	case Token::AssignSar: return ">>=";
-// 	case Token::AssignShr: return ">>>=";
-// 	case Token::AssignAdd: return "+=";
-// 	case Token::AssignSub: return "-=";
-// 	case Token::AssignMul: return "*=";
-// 	case Token::AssignDiv: return "/=";
-// 	case Token::AssignMod: return "%=";
-// 	// default
-// 	default: return "(Unknown Operator)";
-// 	}
-// }
 
 /********************************************************
  *               Compile Contract
@@ -397,6 +186,16 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 /********************************************************
  *                Compile Declarations
  ********************************************************/
+
+llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
+	string name = st->name();
+	vector<llvm::Type*> elements;
+	for (auto var : st->members()) {
+		elements.push_back(compileTypeName(var->typeName()));
+	}
+	return llvm::StructType::create(Context, elements, name);
+}
+
 
 Value* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	llvm::Type* type = compileTypePointer(var->type());
@@ -869,13 +668,7 @@ Value* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 }
 
 Value* LlvmCompiler::compileExp(Identifier const *exp) {
-	string name = exp->name();
-	// LogDebug("Compile Identifier: " + name);
-	Value* llvmValue = findNamedValue(name);
-	// LogDebug((string)"compileExp: Identifier\n" +
-	// 		 "     input: " + name + "\n" +
-	// 		 "     output: " + stringOf(llvmValue));
-	return llvmValue;
+	return findNamedValue(exp->name());
 }
 
 Value* LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
@@ -966,14 +759,17 @@ llvm::Type* LlvmCompiler::compileTypePointer(TypePointer type) {
 	// 	result = "int";
 	// else if (dynamic_pointer_cast<RationalNumberType const>(type) != nullptr)
 	// 	result = "ratio";
-	else if (auto t = dynamic_pointer_cast<StringLiteralType const>(type)) {
-		if (t != nullptr)
-			return llvm::IntegerType::get(Context, t->numBits());
-	}
+	// else if (auto t = dynamic_pointer_cast<StringLiteralType const>(type)) {
+	// 	if (t != nullptr)
+	// 		return llvm::IntegerType::get(Context, t->numBits());
+	// }
 	// else if (dynamic_pointer_cast<FixedBytesType const>(type) != nullptr)
 	// 	result = "char*";
-	// else if (dynamic_pointer_cast<BoolType const>(type) != nullptr)
-	// 	result = "bool";
+	else if (dynamic_pointer_cast<BoolType const>(type) != nullptr) {
+		if (t != nullptr)
+			// consider BoolType as an IntType 8 bit
+			return llvm::IntegerType::get(Context, 8);
+	}
 	// else if (dynamic_pointer_cast<ReferenceType const>(type) != nullptr)
 	// 	result = "reference";
 	// else if (dynamic_pointer_cast<ContractType const>(type) != nullptr)

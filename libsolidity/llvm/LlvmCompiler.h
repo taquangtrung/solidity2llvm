@@ -26,7 +26,9 @@ public:
 	void compileContract(const ContractDefinition* contract);
 
 	// compile declarations
-	llvm::Value* compileVarDecl(const VariableDeclaration* var);
+	llvm::Value* compileGlobalVarDecl(const VariableDeclaration* var);
+	llvm::Value* compileLocalVarDecl(VariableDeclaration& var);
+	llvm::Value* compileLocalVarDecl(VariableDeclaration& var, const Expression* value);
 	llvm::Function* compileFunc(FunctionDefinition const* func);
 
 	// compile statements

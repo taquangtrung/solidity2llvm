@@ -644,6 +644,11 @@ Value* LlvmCompiler::compileExp(NewExpression const* exp) {
 }
 
 Value* LlvmCompiler::compileExp(MemberAccess const* exp) {
+	// 	string strBase = compileExp(&(exp->expression()));
+	// 	string strMember = exp->memberName();
+	// 	return strBase + "." + strMember;
+	Value* llvmBase = compileExp(&(exp->expression()));
+
 	// TODO
 	return nullptr;
 }
@@ -732,21 +737,25 @@ llvm::Type* LlvmCompiler::compileTypeName(ElementaryTypeName const* type) {
 
 llvm::Type* LlvmCompiler::compileTypeName(UserDefinedTypeName const* type) {
 	// TODO
+	LogError("compileTypeName: UserDefinedTypeName: unhandled");
 	return nullptr;
 }
 
 llvm::Type* LlvmCompiler::compileTypeName(FunctionTypeName const* type) {
 	// TODO
+	LogError("compileTypeName: FunctionTypeName: unhandled");
 	return nullptr;
 }
 
 llvm::Type* LlvmCompiler::compileTypeName(Mapping const* type) {
 	// TODO
+	LogError("compileTypeName: Mapping: unhandled");
 	return nullptr;
 }
 
 llvm::Type* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 	// TODO
+	LogError("compileTypeName: ArrayTypeName: unhandled");
 	return nullptr;
 }
 

@@ -86,7 +86,7 @@ public:
   llvm::Type* compileTypeName(FunctionTypeName const* type);
   llvm::Type* compileTypeName(Mapping const* type);
   llvm::Type* compileTypeName(ArrayTypeName const* type);
-  llvm::Type* compileTypePointer(TypePointer type);
+  llvm::Type* compileType(TypePointer type);
 
   // compile a contract to string.
   string llvmString(const ContractDefinition* contract, StringMap sourceCodes);

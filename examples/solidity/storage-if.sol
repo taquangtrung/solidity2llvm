@@ -5,11 +5,11 @@ contract SimpleStorage {
 
     function set(uint x) public {
         storedData = x;
-        if (x > 1)
-            x = x + 1;
+        if (x > x)
+            x = x + x;
         else
-            x = x + 2;
-        x = x + 3;
+            x = x + x;
+        x = x + x;
     }
 
     function get() public view returns (uint) {

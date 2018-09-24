@@ -41,6 +41,14 @@ void LogDebug(string msg) {
 		cout << "!!Debug: " << msg << endl;
 }
 
+void LogDebug(string msg, llvm::Value* value) {
+	if (debug) {
+		llvm::outs() << "!!Debug: " << msg;
+		value->print(llvm::outs());
+		llvm::outs() << "\n";
+	}
+}
+
 /*
   _sourceCodes: maps name of a contract to its source code
 */
@@ -227,23 +235,16 @@ Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 
 	type->print(llvm::outs(), true);
 
-
-	LogDebug("compileExp: VariableDeclaration 10");
-
 	auto llvmVar = Builder.CreateAlloca(type, nullptr, name);
 	// LocalNamedValues[name] = llvmVar;
-	LogDebug("compileExp: VariableDeclaration 11");
 
 	return llvmVar;
 }
 
 Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
                                          const Expression* value) {
-	LogDebug("compileExp: VariableDeclaration 1");
 	auto llvmVar = compileLocalVarDecl(var);
-	LogDebug("compileExp: VariableDeclaration 2");
 	auto llvmValue = compileExp(value);
-	LogDebug("compileExp: VariableDeclaration 3");
 	return Builder.CreateStore(llvmValue, llvmVar);
 }
 
@@ -393,8 +394,10 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 		Builder.CreateBr(mergeBlock);
 
 		Builder.SetInsertPoint(mergeBlock);
-		llvm::Type* phiType =  llvm::Type::getDoubleTy(Context);
+		llvm::Type* phiType =  llvm::Type::getInt64Ty(Context);
 		llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
+		LogDebug("ThenBlock: ", thenBlock);
+		LogDebug("ElseBlock: ", elseBlock);
 		phiNode->addIncoming(thenValue, thenBlock);
 		phiNode->addIncoming(elseValue, elseBlock);
 		return phiNode;
@@ -557,7 +560,7 @@ Value* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: UnaryOp: unknown operator: ", *expression);
+		LogError("compileExp: UnaryOp: unknown operator: ", *exp);
 		return nullptr;
 	}
 }

@@ -28,6 +28,14 @@ void LogError(const char *msg) {
 	exit (1);
 }
 
+void LogError(const char *msg, ASTNode const& node) {
+	ASTPrinter printer(node);
+	std::cerr << "\n!!!Error: " << msg << "\n";
+	printer.print(std::cerr);
+	std::cerr << endl;
+	exit (1);
+}
+
 void LogDebug(string msg) {
 	if (debug)
 		cout << "!!Debug: " << msg << endl;
@@ -361,41 +369,36 @@ Value* LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 }
 
 Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
-	//    string strIndent = createIndent(indent);
-	//    string strCond = compileExp(&(stmt->condition()));
-	//    string strTrue = compileStmt(stmt->trueStatement(), indent);
-	//    Statement const* falseStmt = stmt->falseStatement();
-	//    string result =
-	//      strIndent + "if (" + strCond + ")\n" + strTrue;
-	//    if (falseStmt != nullptr) {
-	//      string strFalse = compileStmt(*(falseStmt), indent);
-	//      result = result + strIndent + "else\n" + strFalse;
-	//    }
-	//    return result;
-
-	Value* condValue = compileExp(&(stmt->condition()));
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-	llvm::BasicBlock* thenBlock =
-		llvm::BasicBlock::Create(Context, "then", llvmFunc);
-	llvm::BasicBlock* elseBlock =
-		llvm::BasicBlock::Create(Context, "else");
-	llvm::BasicBlock* mergeBlock =
-		llvm::BasicBlock::Create(Context, "ifmerge");
 
+	llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(Context, "then");
+	llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(Context, "else");
+	llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(Context, "ifmerge");
+	llvmFunc->getBasicBlockList().push_back(thenBlock);
+	llvmFunc->getBasicBlockList().push_back(elseBlock);
+	llvmFunc->getBasicBlockList().push_back(mergeBlock);
+
+	Value* condValue = compileExp(&(stmt->condition()));
 	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
 
-	Value* thenValue = compileStmt(stmt->trueStatement());
 	Builder.SetInsertPoint(thenBlock);
+	Value* thenValue = compileStmt(stmt->trueStatement());
+	Builder.CreateBr(mergeBlock);
 
-	// Builder.CreateBr(mergeBlock);
-	// Value* elseValue = compileStmt(stmt->falseStatement());
-	// if (elseValue != nullptr) {
+	auto elseStmt = stmt->falseStatement();
+	if (elseStmt != nullptr) {
+		Builder.SetInsertPoint(elseBlock);
+		Value* elseValue = compileStmt(*elseStmt);
+		Builder.CreateBr(mergeBlock);
 
-	// }
-
-	// llvm::PHINode* phiNode = Builder.CreatePHI()
-
+		Builder.SetInsertPoint(mergeBlock);
+		llvm::Type* phiType =  llvm::Type::getDoubleTy(Context);
+		llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
+		phiNode->addIncoming(thenValue, thenBlock);
+		phiNode->addIncoming(elseValue, elseBlock);
+		return phiNode;
+	}
 
 	// TODO
 	return nullptr;
@@ -554,7 +557,7 @@ Value* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: UnaryOp: unknown operator");
+		LogError("compileExp: UnaryOp: unknown operator: ", *expression);
 		return nullptr;
 	}
 }
@@ -568,6 +571,24 @@ Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 
 	switch (op) {
 		// TODO: there might be different type of IR Exps for the same token
+
+	case Token::Equal:
+		return Builder.CreateICmpEQ(lhs, rhs, "eq_tmp");
+
+	case Token::NotEqual:
+		return Builder.CreateICmpNE(lhs, rhs, "neq_tmp");
+
+	case Token::LessThan:
+		return Builder.CreateICmpSLT(lhs, rhs, "lt_tmp");
+
+	case Token::GreaterThan:
+		return Builder.CreateICmpSGT(lhs, rhs, "gt_tmp");
+
+	case Token::LessThanOrEqual:
+		return Builder.CreateICmpSLE(lhs, rhs, "le_tmp");
+
+	case Token::GreaterThanOrEqual:
+		return Builder.CreateICmpSGE(lhs, rhs, "ge_tmp");
 
 	case Token::Comma:
 		LogError("compileExp: BinaryOp: need to support Comma Exp");
@@ -618,7 +639,7 @@ Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: BinaryOp: unknown operator");
+		LogError("compileExp: BinaryOp: unknown operator: ", *exp);
 		return nullptr;
 	}
 }
@@ -689,22 +710,28 @@ Value* LlvmCompiler::compileExp(Literal const *exp) {
 	// TrueLiteral, FalseLiteral, Number, StringLiteral, and CommentLiteral
 	string content = exp->value();
 	switch (exp->token()) {
+
 	case Token::StringLiteral:
 		return llvm::ConstantDataArray::getString(Context, content);
+
 	case Token::TrueLiteral:
 		return llvm::ConstantInt::getTrue(Context);
+
 	case Token::FalseLiteral:
 		return llvm::ConstantInt::getFalse(Context);
+
 	case Token::Number: {
 		// FIXME: temporarily fix to 64 bit, signed integer
 		llvm::IntegerType* intTyp = llvm::IntegerType::get(Context, 64);
 		return llvm::ConstantInt::get(intTyp, atoi(content.data()), true);
 	}
+
 	case Token::CommentLiteral:
 		LogError("compileExp: CommentLiteral: unhandled");
 		return nullptr;
+
 	default:
-		LogError("compileExp: Literal: unknown token");
+		LogError("compileExp: Literal: unknown token: ", *exp);
 		return nullptr;
 	}
 }

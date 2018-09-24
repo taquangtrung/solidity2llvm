@@ -2,6 +2,7 @@
 
 #include "libsolidity/parsing/Scanner.h"
 #include "libsolidity/ast/AST.h"
+#include "libsolidity/ast/ASTPrinter.h"
 #include "libsolidity/ast/ASTVisitor.h"
 #include "libevmasm/LinkerObject.h"
 

@@ -6,6 +6,7 @@
 #include <libdevcore/SHA3.h>
 
 
+namespace legacy = llvm::legacy;
 
 using namespace std;
 using namespace dev;
@@ -13,12 +14,15 @@ using namespace dev::solidity;
 
 using Value = llvm::Value;
 
+
 static llvm::LLVMContext Context;
 static llvm::IRBuilder<> Builder(Context);
-static std::unique_ptr<llvm::Module> CompilingModule;
+static std::unique_ptr<llvm::Module> Module;
 static std::map<std::string, Value *> GlobalNamedValues;
 static std::map<std::string, Value *> LocalNamedValues;
 static std::map<std::string, llvm::StructType *> NamedStructTypes;
+static std::unique_ptr<legacy::FunctionPassManager> FunctionPM;
+
 
 bool debug = true;
 
@@ -68,7 +72,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 	compileContract(contract);
 
 	cout << "====== OUTPUT LLVM IR ======" << endl << endl;
-	CompilingModule->print(llvm::outs(), nullptr);
+	Module->print(llvm::outs(), nullptr);
 
 	return "";
 
@@ -147,9 +151,24 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// // for (const EnumDefinition* en: contract->definedStructs())
 	// //   result = result + "\n\n" + compileStruct(st);
 
-	// make contra
+	// make contract
 	string contractName = contract->name();
-	CompilingModule = llvm::make_unique<llvm::Module>(contractName, Context);
+	Module = llvm::make_unique<llvm::Module>(contractName, Context);
+
+	// managing passes
+	FunctionPM = llvm::make_unique<legacy::FunctionPassManager>(Module.get());
+  // Promote allocas to registers.
+  FunctionPM->add(llvm::createPromoteMemoryToRegisterPass());
+  // Do simple "peephole" optimizations and bit-twiddling optzns.
+  FunctionPM->add(llvm::createInstructionCombiningPass());
+  // Reassociate expressions.
+  FunctionPM->add(llvm::createReassociatePass());
+  // Eliminate Common SubExpressions.
+  FunctionPM->add(llvm::createGVNPass());
+  // Simplify the control flow graph (deleting unreachable blocks, etc).
+  FunctionPM->add(llvm::createCFGSimplificationPass());
+
+  FunctionPM->doInitialization();
 
 	// global variables
 	for (const VariableDeclaration* var: contract->stateVariables())
@@ -239,7 +258,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 	// create function
 	llvm::Function *llvmFunc =
 		llvm::Function::Create(llvmFuncType, llvm::Function::CommonLinkage,
-							   funcName, CompilingModule.get());
+							   funcName, Module.get());
 
 	// set names for parameters and also record it to local names
 	int index = 0;
@@ -257,6 +276,12 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 
 	for (auto stmt: func->body().statements())
 		compileStmt(*stmt);
+
+	// validate function
+	llvm::verifyFunction(*llvmFunc);
+
+	// run optimization passes
+	// FunctionPM->run(*llvmFunc);
 
 	return llvmFunc;
 }
@@ -609,7 +634,7 @@ Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 Value* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	string funcName = *(exp->names().at(0));
 	cout << "FuncCall: FuncName: " << funcName << endl;
-	llvm::Function *callee = CompilingModule->getFunction(funcName);
+	llvm::Function *callee = Module->getFunction(funcName);
 
 	vector<Value*> arguments;
 	for (auto arg : exp->arguments())

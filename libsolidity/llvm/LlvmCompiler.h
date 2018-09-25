@@ -15,10 +15,14 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Verifier.h"
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+
+#include "llvm/LinkAllPasses.h"
 
 #include <map>
 

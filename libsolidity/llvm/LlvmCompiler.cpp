@@ -49,6 +49,14 @@ void LogDebug(string msg, llvm::Value* value) {
 	}
 }
 
+void LogDebug(string msg, llvm::Type* type) {
+	if (debug) {
+		llvm::outs() << "!!Debug: " << msg;
+		type->print(llvm::outs());
+		llvm::outs() << "\n";
+	}
+}
+
 /*
   _sourceCodes: maps name of a contract to its source code
 */
@@ -66,16 +74,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 
 }
 
-// string LlvmCompiler::compileStructDecl(const StructDefinition* st) {
-//    string result = "struct " + st->name() + " {\n";
-//    string strIndent = createIndent(1);
-//    for (auto var : st->members())
-//      result = result + strIndent + compileTypeName(var->typeName())
-//        + " " + var->name() + ";\n";
-//    result = result + "}";
-//    return result;
-// }
-
 // string LlvmCompiler::compileStmt(Block const* stmt, int indent) {
 //    string strIndent = createIndent(indent);
 //    string result = strIndent + "{\n" ;
@@ -83,30 +81,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 //      result = result + compileStmt(*s, indent + 1) + "\n";
 //    result = result + strIndent + "}" ;
 //    return result;
-// }
-
-// string LlvmCompiler::compileStmt(IfStatement const* stmt, int indent) {
-//    string strIndent = createIndent(indent);
-//    string strCond = compileExp(&(stmt->condition()));
-//    string strTrue = compileStmt(stmt->trueStatement(), indent);
-//    Statement const* falseStmt = stmt->falseStatement();
-//    string result =
-//      strIndent + "if (" + strCond + ")\n" + strTrue;
-//    if (falseStmt != nullptr) {
-//      string strFalse = compileStmt(*(falseStmt), indent);
-//      result = result + strIndent + "else\n" + strFalse;
-//    }
-//    return result;
-// }
-
-// string LlvmCompiler::compileStmt(BreakableStatement const* stmt, int indent) {
-//    if (auto s = dynamic_cast<WhileStatement const*>(stmt)) {
-//      if (s != nullptr) return compileStmt(s, indent);
-//    }
-//    if (auto s = dynamic_cast<ForStatement const*>(stmt)) {
-//      if (s != nullptr) return compileStmt(s, indent);
-//    }
-//    return "(Unknown BreakableStatement)";
 // }
 
 // string LlvmCompiler::compileStmt(WhileStatement const* stmt, int indent) {
@@ -156,18 +130,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 //    string strIndex = compileExp(exp->indexExpression());
 //    return strBase + "[" + strIndex + "]";
 // }
-
-// string LlvmCompiler::compileExp(Identifier const *exp) {
-//    string result = exp->name();
-//    // if (debug)
-//    //    result = "(Identifier: " + result + ")";
-//    return result;
-// }
-
-// string LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
-//    return exp->typeName().toString();
-// }
-
 
 /********************************************************
  *               Compile Contract
@@ -394,10 +356,14 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 		Builder.CreateBr(mergeBlock);
 
 		Builder.SetInsertPoint(mergeBlock);
-		llvm::Type* phiType =  llvm::Type::getInt64Ty(Context);
+		llvm::Type* phiType =  thenValue->getType();
 		llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
 		LogDebug("ThenBlock: ", thenBlock);
+		LogDebug("ThenValue: ", thenValue);
 		LogDebug("ElseBlock: ", elseBlock);
+		LogDebug("ElseValue: ", elseValue);
+		LogDebug("ElseType: ", elseValue->getType());
+		LogDebug("PhiType: ", phiType);
 		phiNode->addIncoming(thenValue, thenBlock);
 		phiNode->addIncoming(elseValue, elseBlock);
 		return phiNode;
@@ -533,25 +499,22 @@ Value* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 	Value* subExp = compileExp(&(exp->subExpression()));
 	if (!subExp) return nullptr;
 
-	Token::Value op = exp->getOperator();
-
-
-	switch (op) {
+	switch (exp->getOperator()) {
 	case Token::Not:
-		return Builder.CreateNot(subExp, "not_tmp");
+		return Builder.CreateNot(subExp, "");
 
 	case Token::BitNot:
-		return Builder.CreateNot(subExp, "bitnot_tmp");
+		return Builder.CreateNot(subExp, "");
 
 	case Token::Inc: {
 		Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateAdd(subExp, one, "inc_tmp");
+		auto newExp = Builder.CreateAdd(subExp, one, "");
 		return Builder.CreateStore(newExp, subExp);
 	}
 
 	case Token::Dec: {
 		Value* one = llvm::ConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateSub(subExp, one, "dec_tmp");
+		auto newExp = Builder.CreateSub(subExp, one, "");
 		return Builder.CreateStore(newExp, subExp);
 	}
 
@@ -570,72 +533,68 @@ Value* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	Value* rhs = compileExp(&(exp->rightExpression()));
 	if (!lhs || !rhs) return nullptr;
 
-	Token::Value op = exp->getOperator();
-
-	switch (op) {
-		// TODO: there might be different type of IR Exps for the same token
-
+	switch (exp->getOperator()) {
 	case Token::Equal:
-		return Builder.CreateICmpEQ(lhs, rhs, "eq_tmp");
+		return Builder.CreateICmpEQ(lhs, rhs, "");
 
 	case Token::NotEqual:
-		return Builder.CreateICmpNE(lhs, rhs, "neq_tmp");
+		return Builder.CreateICmpNE(lhs, rhs, "");
 
 	case Token::LessThan:
-		return Builder.CreateICmpSLT(lhs, rhs, "lt_tmp");
+		return Builder.CreateICmpSLT(lhs, rhs, "");
 
 	case Token::GreaterThan:
-		return Builder.CreateICmpSGT(lhs, rhs, "gt_tmp");
+		return Builder.CreateICmpSGT(lhs, rhs, "");
 
 	case Token::LessThanOrEqual:
-		return Builder.CreateICmpSLE(lhs, rhs, "le_tmp");
+		return Builder.CreateICmpSLE(lhs, rhs, "");
 
 	case Token::GreaterThanOrEqual:
-		return Builder.CreateICmpSGE(lhs, rhs, "ge_tmp");
+		return Builder.CreateICmpSGE(lhs, rhs, "");
 
 	case Token::Comma:
 		LogError("compileExp: BinaryOp: need to support Comma Exp");
 		return nullptr;
 
 	case Token::Or:
-		return Builder.CreateOr(lhs, rhs, "or_tmp");
+		return Builder.CreateOr(lhs, rhs, "");
 
 	case Token::And:
-		return Builder.CreateOr(lhs, rhs, "and_tmp");
+		return Builder.CreateOr(lhs, rhs, "");
 
 	case Token::BitOr:
-		return Builder.CreateOr(lhs, rhs, "bitor_tmp");
+		return Builder.CreateOr(lhs, rhs, "");
 
 	case Token::BitXor:
-		return Builder.CreateXor(lhs, rhs, "bitxor_tmp");
+		return Builder.CreateXor(lhs, rhs, "");
 
 	case Token::BitAnd:
-		return Builder.CreateXor(lhs, rhs, "bitand_tmp");
+		return Builder.CreateXor(lhs, rhs, "");
 
 	case Token::SHL:
-		return Builder.CreateShl(lhs, rhs, "shl_tmp");
+		return Builder.CreateShl(lhs, rhs, "");
 
 	case Token::SAR:
 		LogError("compileExp: BinaryOp: need to support SAR");
 		return nullptr;
 
 	case Token::SHR:
-		return Builder.CreateLShr(lhs, rhs, "shr_tmp");
+		return Builder.CreateLShr(lhs, rhs, "");
 
 	case Token::Add:
-		return Builder.CreateAdd(lhs, rhs, "add_tmp");
+		return Builder.CreateAdd(lhs, rhs, "");
 
 	case Token::Sub:
-		return Builder.CreateSub(lhs, rhs, "sub_tmp");
+		return Builder.CreateSub(lhs, rhs, "");
 
 	case Token::Mul:
-		return Builder.CreateMul(lhs, rhs, "mul_tmp");
+		return Builder.CreateMul(lhs, rhs, "");
 
 	case Token::Div:
-		return Builder.CreateUDiv(lhs, rhs, "div_tmp");
+		return Builder.CreateUDiv(lhs, rhs, "");
 
 	case Token::Mod:
-		return Builder.CreateURem(lhs, rhs, "rem_tmp");
+		return Builder.CreateURem(lhs, rhs, "");
 
 	case Token::Exp:
 		LogError("compileExp: BinaryOp: unhandled Exponential Exp");

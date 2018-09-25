@@ -4,8 +4,11 @@ struct foo {
 };
 
 int main() {
-    struct foo x;
-    x.value = 1;
-    x.data = 2;
+    int x = 10;
+    if (x > 1)
+        x = x + x;
+    else
+        x = x + x;
+    x = x + 2;
     return 1;
 }

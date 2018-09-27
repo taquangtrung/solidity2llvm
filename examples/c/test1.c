@@ -1,14 +1,11 @@
-struct foo {
-    int value;
-    int data;
-};
+#include<stdio.h>
 
-int main() {
-    int x = 10;
-    if (x > 1)
-        x = x + x;
+int foo(int a, int b) {
+    int z = 3;
+    if (a > b)
+        z = a;
     else
-        x = x + x;
-    x = x + 2;
-    return 1;
+        z = b;
+    int u = z;
+    return u;
 }

@@ -23,7 +23,6 @@ static std::map<std::string, Value *> LocalNamedValues;
 static std::map<std::string, llvm::StructType *> NamedStructTypes;
 static std::unique_ptr<legacy::FunctionPassManager> FunctionPM;
 
-
 bool debug = true;
 
 
@@ -43,6 +42,15 @@ void LogError(const char *msg, ASTNode const& node) {
 void LogDebug(string msg) {
 	if (debug)
 		cout << "!!Debug: " << msg << endl;
+}
+
+void LogDebug(string msg, ASTNode const& node) {
+	if (debug) {
+		llvm::outs() << "!!Debug: " << msg;
+		ASTPrinter printer(node);
+		printer.print(std::cerr);
+		std::cerr << endl;
+	}
 }
 
 void LogDebug(string msg, llvm::Value* value) {
@@ -71,8 +79,17 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 
 	compileContract(contract);
 
+	// validate module
+	llvm::verifyModule(*Module);
+
+
 	cout << "====== OUTPUT LLVM IR ======" << endl << endl;
 	Module->print(llvm::outs(), nullptr);
+
+	std::error_code EC;
+	llvm::raw_fd_ostream OS("module", EC, llvm::sys::fs::F_None);
+	llvm::WriteBitcodeToFile(&(*Module), OS);
+	OS.flush();
 
 	return "";
 
@@ -155,20 +172,20 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	string contractName = contract->name();
 	Module = llvm::make_unique<llvm::Module>(contractName, Context);
 
-	// managing passes
+	// perform optimization passes
 	FunctionPM = llvm::make_unique<legacy::FunctionPassManager>(Module.get());
-  // Promote allocas to registers.
-  FunctionPM->add(llvm::createPromoteMemoryToRegisterPass());
-  // Do simple "peephole" optimizations and bit-twiddling optzns.
-  FunctionPM->add(llvm::createInstructionCombiningPass());
-  // Reassociate expressions.
-  FunctionPM->add(llvm::createReassociatePass());
-  // Eliminate Common SubExpressions.
-  FunctionPM->add(llvm::createGVNPass());
-  // Simplify the control flow graph (deleting unreachable blocks, etc).
-  FunctionPM->add(llvm::createCFGSimplificationPass());
+	// Promote allocas to registers.
+	// FunctionPM->add(llvm::createPromoteMemoryToRegisterPass());
+	// // Do simple "peephole" optimizations and bit-twiddling optzns.
+	// FunctionPM->add(llvm::createInstructionCombiningPass());
+ 	// Reassociate expressions.
+	// FunctionPM->add(llvm::createReassociatePass());
+	// Eliminate Common SubExpressions.
+	// FunctionPM->add(llvm::createGVNPass());
+	// // Simplify the control flow graph (deleting unreachable blocks, etc).
+	// FunctionPM->add(llvm::createCFGSimplificationPass());
 
-  FunctionPM->doInitialization();
+	FunctionPM->doInitialization();
 
 	// global variables
 	for (const VariableDeclaration* var: contract->stateVariables())
@@ -177,6 +194,8 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// functions
 	for (const FunctionDefinition* func: contract->definedFunctions())
 		compileFunc(func);
+
+
 }
 
 
@@ -203,7 +222,8 @@ Value* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	string name = var->name();
 
 	llvm::GlobalVariable* llvmVar =
-		new llvm::GlobalVariable(type, false, llvm::GlobalVariable::CommonLinkage,
+		new llvm::GlobalVariable(*Module, type, false,
+								 llvm::GlobalVariable::CommonLinkage,
 								 nullptr, name);
 	GlobalNamedValues[name] = llvmVar;
 	return llvmVar;
@@ -214,10 +234,8 @@ Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 	llvm::Type* type = compileType(var.type());
 	string name = var.name();
 
-	type->print(llvm::outs(), true);
-
 	auto llvmVar = Builder.CreateAlloca(type, nullptr, name);
-	// LocalNamedValues[name] = llvmVar;
+	LocalNamedValues[name] = llvmVar;
 
 	return llvmVar;
 }
@@ -281,7 +299,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 	llvm::verifyFunction(*llvmFunc);
 
 	// run optimization passes
-	// FunctionPM->run(*llvmFunc);
+	FunctionPM->run(*llvmFunc);
 
 	return llvmFunc;
 }
@@ -381,17 +399,17 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 		Builder.CreateBr(mergeBlock);
 
 		Builder.SetInsertPoint(mergeBlock);
-		llvm::Type* phiType =  thenValue->getType();
-		llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
-		LogDebug("ThenBlock: ", thenBlock);
-		LogDebug("ThenValue: ", thenValue);
-		LogDebug("ElseBlock: ", elseBlock);
-		LogDebug("ElseValue: ", elseValue);
-		LogDebug("ElseType: ", elseValue->getType());
-		LogDebug("PhiType: ", phiType);
-		phiNode->addIncoming(thenValue, thenBlock);
-		phiNode->addIncoming(elseValue, elseBlock);
-		return phiNode;
+		// llvm::Type* phiType =  thenValue->getType();
+		// llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
+		// LogDebug("ThenBlock: ", thenBlock);
+		// LogDebug("ThenValue: ", thenValue);
+		// LogDebug("ElseBlock: ", elseBlock);
+		// LogDebug("ElseValue: ", elseValue);
+		// LogDebug("ElseType: ", elseValue->getType());
+		// LogDebug("PhiType: ", phiType);
+		// phiNode->addIncoming(thenValue, thenBlock);
+		// phiNode->addIncoming(elseValue, elseBlock);
+		// return phiNode;
 	}
 
 	// TODO
@@ -494,7 +512,8 @@ Value* LlvmCompiler::compileExp(Expression const* exp) {
 	if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
 		if (e != nullptr) return compileExp(e);
 	}
-	LogError("compileExp: unknown expression");
+	LogDebug("compileExp: unknown expression: ", *exp);
+	LogError("compileExp: unknown expression: ", *exp);
 	return nullptr;
 }
 

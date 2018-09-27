@@ -18,11 +18,18 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 
+#include "llvm/Bitcode/BitcodeWriter.h"
+
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FileSystem.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "llvm/LinkAllPasses.h"
+
+
+
 
 #include <map>
 

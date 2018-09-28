@@ -13,18 +13,10 @@ using namespace dev;
 using namespace dev::solidity;
 
 using Value = llvm::Value;
+using BasicBlock = llvm::BasicBlock;
 
-
-static llvm::LLVMContext Context;
-static llvm::IRBuilder<> Builder(Context);
-static std::unique_ptr<llvm::Module> Module;
-static std::map<std::string, Value *> GlobalNamedValues;
-static std::map<std::string, Value *> LocalNamedValues;
-static std::map<std::string, llvm::StructType *> NamedStructTypes;
-static std::unique_ptr<legacy::FunctionPassManager> FunctionPM;
 
 bool debug = true;
-
 
 void LogError(const char *msg) {
 	fprintf(stderr, "\n!!!Error: %s\n", msg);
@@ -73,6 +65,7 @@ void LogDebug(string msg, llvm::Type* type) {
   _sourceCodes: maps name of a contract to its source code
 */
 string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
+	// llvm::IRBuilder<> Builder1(Context);
 	cout << "start to compile to LLVM IR..." << endl;
 
 	compilingSourceCodes = sourceCodes;
@@ -288,8 +281,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
 	}
 
 	// translate new function
-	llvm::BasicBlock *block =
-		llvm::BasicBlock::Create(Context, "entry", llvmFunc);
+	BasicBlock *block = BasicBlock::Create(Context, "entry", llvmFunc);
 	Builder.SetInsertPoint(block);
 
 	for (auto stmt: func->body().statements())
@@ -357,15 +349,15 @@ Value* LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 Value* LlvmCompiler::compileStmt(Block const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-	llvm::BasicBlock* block =
-		llvm::BasicBlock::Create(Context, "block", llvmFunc);
+	BasicBlock* block = BasicBlock::Create(Context, "block", llvmFunc);
 	Builder.SetInsertPoint(block);
 
+	llvm::Value* lastStmt = nullptr;
 	for (auto s : stmt->statements())
-		compileStmt(*s);
+		lastStmt = compileStmt(*s);
 
 	llvmFunc->getBasicBlockList().push_back(block);
-	return nullptr;
+	return lastStmt;
 }
 
 Value* LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
@@ -377,28 +369,24 @@ Value* LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-
-	llvm::BasicBlock* thenBlock = llvm::BasicBlock::Create(Context, "then");
-	llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(Context, "else");
-	llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(Context, "ifmerge");
-	llvmFunc->getBasicBlockList().push_back(thenBlock);
-	llvmFunc->getBasicBlockList().push_back(elseBlock);
-	llvmFunc->getBasicBlockList().push_back(mergeBlock);
+	BasicBlock* thenBlock = BasicBlock::Create(Context, "if.then", llvmFunc);
+	BasicBlock* elseBlock = BasicBlock::Create(Context, "if.else", llvmFunc);
+	BasicBlock* endBlock = BasicBlock::Create(Context, "if.end", llvmFunc);
 
 	Value* condValue = compileExp(&(stmt->condition()));
 	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
 
 	Builder.SetInsertPoint(thenBlock);
 	Value* thenValue = compileStmt(stmt->trueStatement());
-	Builder.CreateBr(mergeBlock);
+	Builder.CreateBr(endBlock);
 
 	auto elseStmt = stmt->falseStatement();
 	if (elseStmt != nullptr) {
 		Builder.SetInsertPoint(elseBlock);
 		Value* elseValue = compileStmt(*elseStmt);
-		Builder.CreateBr(mergeBlock);
+		Builder.CreateBr(endBlock);
 
-		Builder.SetInsertPoint(mergeBlock);
+		Builder.SetInsertPoint(endBlock);
 		// llvm::Type* phiType =  thenValue->getType();
 		// llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
 		// LogDebug("ThenBlock: ", thenBlock);
@@ -429,7 +417,11 @@ Value* LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 }
 
 Value* LlvmCompiler::compileStmt(ForStatement const* stmt) {
-	// TODO
+	BasicBlock* condBlock = BasicBlock::Create(Context, "for.cond");
+	BasicBlock* incBlock = BasicBlock::Create(Context, "for.inc");
+	BasicBlock* bodyBlock = BasicBlock::Create(Context, "for.body");
+	BasicBlock* endBlock = BasicBlock::Create(Context, "for.end");
+
 	LogError("compileStmt: ForStatement: unhandled");
 	return nullptr;
 }
@@ -888,7 +880,7 @@ string LlvmCompiler::stringOf(llvm::Function* func) {
 	return result;
 }
 
-string LlvmCompiler::stringOf(llvm::BasicBlock* block) {
+string LlvmCompiler::stringOf(BasicBlock* block) {
 	if (block == nullptr)
 		return "(nullptr block)";
 

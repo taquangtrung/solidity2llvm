@@ -28,18 +28,22 @@
 
 #include "llvm/LinkAllPasses.h"
 
-
-
-
 #include <map>
+#include <stack>
 
 using namespace std;
 
 using Value = llvm::Value;
+using BasicBlock = llvm::BasicBlock;
 
 namespace dev {
 
 namespace solidity {
+
+typedef struct _LoopInfo {
+	BasicBlock* loopHead;
+	BasicBlock* loopEnd;
+} LoopInfo;
 
 class LlvmCompiler {
 
@@ -62,7 +66,6 @@ class LlvmCompiler {
 	Value* compileStmt(Block const* stmt);
 	Value* compileStmt(PlaceholderStatement const* stmt);
 	Value* compileStmt(IfStatement const* stmt);
-	Value* compileStmt(BreakableStatement const* stmt);
 	Value* compileStmt(WhileStatement const* stmt);
 	Value* compileStmt(ForStatement const* stmt);
 	Value* compileStmt(Continue const* stmt);
@@ -120,6 +123,7 @@ private:
 	std::map<std::string, Value *> LocalNamedValues;
 	std::map<std::string, llvm::StructType *> NamedStructTypes;
 	std::unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
+	std::stack<LoopInfo> LoopStack;
 
 };
 

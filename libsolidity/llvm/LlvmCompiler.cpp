@@ -12,8 +12,7 @@ using namespace std;
 using namespace dev;
 using namespace dev::solidity;
 
-using Value = llvm::Value;
-using BasicBlock = llvm::BasicBlock;
+
 
 
 bool debug = true;
@@ -66,6 +65,9 @@ void LogDebug(string msg, llvm::Type* type) {
 */
 string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
 	// llvm::IRBuilder<> Builder1(Context);
+	LoopStack.empty();
+
+
 	cout << "start to compile to LLVM IR..." << endl;
 
 	compilingSourceCodes = sourceCodes;
@@ -313,7 +315,10 @@ Value* LlvmCompiler::compileStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
 		if (s != nullptr) return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<BreakableStatement const*>(&stmt)) {
+	if (auto s = dynamic_cast<ForStatement const*>(&stmt)) {
+		if (s != nullptr) return compileStmt(s);
+	}
+	if (auto s = dynamic_cast<WhileStatement const*>(&stmt)) {
 		if (s != nullptr) return compileStmt(s);
 	}
 	if (auto s = dynamic_cast<Continue const*>(&stmt)) {
@@ -404,12 +409,6 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(BreakableStatement const* stmt) {
-	// TODO
-	LogError("compileStmt: BreakableStatement: unhandled");
-	return nullptr;
-}
-
 Value* LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 	// TODO
 	LogError("compileStmt: WhileStatement: unhandled");
@@ -417,25 +416,56 @@ Value* LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 }
 
 Value* LlvmCompiler::compileStmt(ForStatement const* stmt) {
-	BasicBlock* condBlock = BasicBlock::Create(Context, "for.cond");
-	BasicBlock* incBlock = BasicBlock::Create(Context, "for.inc");
-	BasicBlock* bodyBlock = BasicBlock::Create(Context, "for.body");
-	BasicBlock* endBlock = BasicBlock::Create(Context, "for.end");
+	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
-	LogError("compileStmt: ForStatement: unhandled");
+	BasicBlock* condBlock = BasicBlock::Create(Context, "for.cond", llvmFunc);
+	BasicBlock* loopBlock = BasicBlock::Create(Context, "for.loop", llvmFunc);
+	BasicBlock* bodyBlock = BasicBlock::Create(Context, "for.body", llvmFunc);
+	BasicBlock* endBlock = BasicBlock::Create(Context, "for.end", llvmFunc);
+
+	// store to the loop stack
+	LoopInfo loop {condBlock, endBlock};
+	LoopStack.push(loop);
+
+	// loop initialization
+	compileStmt(*(stmt->initializationExpression()));
+	Builder.CreateBr(condBlock);
+
+	// loop condition
+	Builder.SetInsertPoint(condBlock);
+	Value* condValue = compileExp(stmt->condition());
+	Builder.CreateCondBr(condValue, bodyBlock, endBlock);
+
+	// loop expression
+	Builder.SetInsertPoint(loopBlock);
+	compileStmt(stmt->loopExpression());
+	Builder.CreateBr(condBlock);
+
+	// loop body
+	Builder.SetInsertPoint(bodyBlock);
+	compileStmt(stmt->body());
+	Builder.CreateBr(loopBlock);
+
+	// remove the loop from the stack
+	LoopStack.pop();
+
 	return nullptr;
 }
 
 Value* LlvmCompiler::compileStmt(Continue const* stmt) {
-	// TODO
-	LogError("compileStmt: Continue: unhandled");
-	return nullptr;
+	if (LoopStack.empty())
+		LogError("compileStmt: Continue: empty Loop Stack");
+
+	LoopInfo loop = LoopStack.top();
+	return Builder.CreateBr(loop.loopHead);
 }
 
 Value* LlvmCompiler::compileStmt(Break const* stmt) {
-	// TODO
-	LogError("compileStmt: Break: unhandled");
-	return nullptr;
+	if (LoopStack.empty())
+		LogError("compileStmt: Break: empty Loop Stack");
+
+	LoopInfo loop = LoopStack.top();
+	return Builder.CreateBr(loop.loopEnd);
 }
 
 Value* LlvmCompiler::compileStmt(Return const* stmt) {

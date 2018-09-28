@@ -61,20 +61,20 @@ class LlvmCompiler {
 	llvm::Function* compileFunc(FunctionDefinition const* func);
 
 	// compile statements
-	Value* compileStmt(Statement const& stmt);
-	Value* compileStmt(InlineAssembly const* stmt);
-	Value* compileStmt(Block const* stmt);
-	Value* compileStmt(PlaceholderStatement const* stmt);
-	Value* compileStmt(IfStatement const* stmt);
-	Value* compileStmt(WhileStatement const* stmt);
-	Value* compileStmt(ForStatement const* stmt);
-	Value* compileStmt(Continue const* stmt);
-	Value* compileStmt(Break const* stmt);
-	Value* compileStmt(Return const* stmt);
-	Value* compileStmt(Throw const* stmt);
-	Value* compileStmt(EmitStatement const* stmt);
-	Value* compileStmt(VariableDeclarationStatement const* stmt);
-	Value* compileStmt(ExpressionStatement const* stmt);
+	void compileStmt(Statement const& stmt);
+	void compileStmt(InlineAssembly const* stmt);
+	void compileStmt(Block const* stmt);
+	void compileStmt(PlaceholderStatement const* stmt);
+	void compileStmt(IfStatement const* stmt);
+	void compileStmt(WhileStatement const* stmt);
+	void compileStmt(ForStatement const* stmt);
+	void compileStmt(Continue const* stmt);
+	void compileStmt(Break const* stmt);
+	void compileStmt(Return const* stmt);
+	void compileStmt(Throw const* stmt);
+	void compileStmt(EmitStatement const* stmt);
+	void compileStmt(VariableDeclarationStatement const* stmt);
+	void compileStmt(ExpressionStatement const* stmt);
 
 	// compile expressions
 	Value* compileExp(Expression const* exp);

@@ -302,7 +302,7 @@ llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
  *                 Compile Statements
  ********************************************************/
 
-Value* LlvmCompiler::compileStmt(Statement const& stmt) {
+void LlvmCompiler::compileStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
 		if (s != nullptr) return compileStmt(s);
 	}
@@ -342,36 +342,29 @@ Value* LlvmCompiler::compileStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
 		if (s != nullptr) return compileStmt(s);
 	}
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
+void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 	// TODO
 	LogError("compileStmt: InlineAssembly: unhandled");
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(Block const* stmt) {
+void LlvmCompiler::compileStmt(Block const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
 	BasicBlock* block = BasicBlock::Create(Context, "block", llvmFunc);
 	Builder.SetInsertPoint(block);
 
-	llvm::Value* lastStmt = nullptr;
 	for (auto s : stmt->statements())
-		lastStmt = compileStmt(*s);
-
-	llvmFunc->getBasicBlockList().push_back(block);
-	return lastStmt;
+		compileStmt(*s);
 }
 
-Value* LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
+void LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 	// TODO
 	LogError("compileStmt: PlaceholderStatement: unhandled");
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
+void LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
 	BasicBlock* thenBlock = BasicBlock::Create(Context, "if.then", llvmFunc);
@@ -382,13 +375,13 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
 
 	Builder.SetInsertPoint(thenBlock);
-	Value* thenValue = compileStmt(stmt->trueStatement());
+	compileStmt(stmt->trueStatement());
 	Builder.CreateBr(endBlock);
 
 	auto elseStmt = stmt->falseStatement();
 	if (elseStmt != nullptr) {
 		Builder.SetInsertPoint(elseBlock);
-		Value* elseValue = compileStmt(*elseStmt);
+		compileStmt(*elseStmt);
 		Builder.CreateBr(endBlock);
 
 		Builder.SetInsertPoint(endBlock);
@@ -404,18 +397,37 @@ Value* LlvmCompiler::compileStmt(IfStatement const* stmt) {
 		// phiNode->addIncoming(elseValue, elseBlock);
 		// return phiNode;
 	}
-
-	// TODO
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(WhileStatement const* stmt) {
-	// TODO
-	LogError("compileStmt: WhileStatement: unhandled");
-	return nullptr;
+void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
+	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
+
+	BasicBlock* condBlock = BasicBlock::Create(Context, "while.cond", llvmFunc);
+	BasicBlock* bodyBlock = BasicBlock::Create(Context, "while.body", llvmFunc);
+	BasicBlock* endBlock = BasicBlock::Create(Context, "while.end", llvmFunc);
+
+	// store to the loop stack
+	LoopInfo loop {condBlock, endBlock};
+	LoopStack.push(loop);
+
+	// loop condition
+	Builder.SetInsertPoint(condBlock);
+	Value* condValue = compileExp(&(stmt->condition()));
+	Builder.CreateCondBr(condValue, bodyBlock, endBlock);
+
+	// loop body
+	Builder.SetInsertPoint(bodyBlock);
+	compileStmt(stmt->body());
+	Builder.CreateBr(condBlock);
+
+	// end block
+	Builder.SetInsertPoint(endBlock);
+
+	// remove the loop from the stack
+	LoopStack.pop();
 }
 
-Value* LlvmCompiler::compileStmt(ForStatement const* stmt) {
+void LlvmCompiler::compileStmt(ForStatement const* stmt) {
 	llvm::Function* llvmFunc = Builder.GetInsertBlock()->getParent();
 
 	BasicBlock* condBlock = BasicBlock::Create(Context, "for.cond", llvmFunc);
@@ -446,57 +458,54 @@ Value* LlvmCompiler::compileStmt(ForStatement const* stmt) {
 	compileStmt(stmt->body());
 	Builder.CreateBr(loopBlock);
 
+	// end block
+	Builder.SetInsertPoint(endBlock);
+
 	// remove the loop from the stack
 	LoopStack.pop();
-
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(Continue const* stmt) {
+void LlvmCompiler::compileStmt(Continue const* stmt) {
 	if (LoopStack.empty())
 		LogError("compileStmt: Continue: empty Loop Stack");
 
 	LoopInfo loop = LoopStack.top();
-	return Builder.CreateBr(loop.loopHead);
+	Builder.CreateBr(loop.loopHead);
 }
 
-Value* LlvmCompiler::compileStmt(Break const* stmt) {
+void LlvmCompiler::compileStmt(Break const* stmt) {
 	if (LoopStack.empty())
 		LogError("compileStmt: Break: empty Loop Stack");
 
 	LoopInfo loop = LoopStack.top();
-	return Builder.CreateBr(loop.loopEnd);
+	Builder.CreateBr(loop.loopEnd);
 }
 
-Value* LlvmCompiler::compileStmt(Return const* stmt) {
-	return Builder.CreateRet(compileExp(stmt->expression()));
+void LlvmCompiler::compileStmt(Return const* stmt) {
+	Builder.CreateRet(compileExp(stmt->expression()));
 }
 
-Value* LlvmCompiler::compileStmt(Throw const* stmt) {
+void LlvmCompiler::compileStmt(Throw const* stmt) {
 	// TODO
 	LogError("compileStmt: Throw: unhandled");
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(EmitStatement const* stmt) {
+void LlvmCompiler::compileStmt(EmitStatement const* stmt) {
 	// TODO
 	LogError("compileStmt: Emit: unhandled");
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
+void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	auto vars = stmt->declarations();
 	string result = "";
 	if (vars.size() == 1)
-		return compileLocalVarDecl(*(vars.at(0)), stmt->initialValue());
+		compileLocalVarDecl(*(vars.at(0)), stmt->initialValue());
 	else
 		LogError("compileStmt: VariableDeclarationStatement: more than 1 var");
-
-	return nullptr;
 }
 
-Value* LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
-	return compileExp(&(stmt->expression()));
+void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
+	compileExp(&(stmt->expression()));
 }
 
 /********************************************************

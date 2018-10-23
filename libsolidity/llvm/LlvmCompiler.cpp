@@ -24,20 +24,24 @@ void LogError(const char *msg) {
 
 void LogError(const char *msg, ASTNode const& node) {
 	ASTPrinter printer(node);
-	std::cerr << "\n!!!Error: " << msg << "\n";
+	std::cerr << "\n!!! Error: " << msg << "\n";
 	printer.print(std::cerr);
 	std::cerr << endl;
 	exit (1);
 }
 
+void LogWarning(const char *msg) {
+	fprintf(stderr, "\n!!! Warning: %s\n", msg);
+}
+
 void LogDebug(string msg) {
 	if (debug)
-		cout << "!!Debug: " << msg << endl;
+		cout << "!! Debug: " << msg << endl;
 }
 
 void LogDebug(string msg, ASTNode const& node) {
 	if (debug) {
-		llvm::outs() << "!!Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg;
 		ASTPrinter printer(node);
 		printer.print(std::cerr);
 		std::cerr << endl;
@@ -46,7 +50,7 @@ void LogDebug(string msg, ASTNode const& node) {
 
 void LogDebug(string msg, llvm::Value* value) {
 	if (debug) {
-		llvm::outs() << "!!Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg;
 		value->print(llvm::outs());
 		llvm::outs() << "\n";
 	}
@@ -54,7 +58,7 @@ void LogDebug(string msg, llvm::Value* value) {
 
 void LogDebug(string msg, llvm::Type* type) {
 	if (debug) {
-		llvm::outs() << "!!Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg;
 		type->print(llvm::outs());
 		llvm::outs() << "\n";
 	}
@@ -486,13 +490,12 @@ void LlvmCompiler::compileStmt(Return const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(Throw const* stmt) {
-	// TODO
-	LogError("compileStmt: Throw: unhandled");
+	LogWarning("The 'throw' statement is deprecated from the version 0.4.13 ");
+	return;
 }
 
 void LlvmCompiler::compileStmt(EmitStatement const* stmt) {
-	// TODO
-	LogError("compileStmt: Emit: unhandled");
+	compileExp(&(stmt->eventCall()));
 }
 
 void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {

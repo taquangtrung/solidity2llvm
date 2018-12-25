@@ -94,46 +94,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 
 }
 
-// string LlvmCompiler::compileStmt(Block const* stmt, int indent) {
-//    string strIndent = createIndent(indent);
-//    string result = strIndent + "{\n" ;
-//    for (auto s : stmt->statements())
-//      result = result + compileStmt(*s, indent + 1) + "\n";
-//    result = result + strIndent + "}" ;
-//    return result;
-// }
-
-// string LlvmCompiler::compileStmt(WhileStatement const* stmt, int indent) {
-//    string strIndent = createIndent(indent);
-//    string strCond = compileExp(&(stmt->condition()));
-//    string strBody = compileStmt(stmt->body(), indent);
-//    string result = strIndent + "while (" + strCond + ")\n" + strBody;
-//    return result;
-// }
-
-// string LlvmCompiler::compileStmt(ForStatement const* stmt, int indent) {
-//    string strIndent = createIndent(indent);
-//    string strInit = compileStmt(*(stmt->initializationExpression()), 0);
-//    string strLoop = compileStmt(stmt->loopExpression(), 0);
-//    string strCond = compileExp(stmt->condition());
-//    string strBody = compileStmt(stmt->body(), indent);
-//    string result = strIndent + "for (" + strInit + "; " + strCond +
-//      "; " + strLoop + ")\n" + strBody;
-//    return result;
-// }
-
-// string LlvmCompiler::compileExp(FunctionCall const* exp) {
-//    string strFunc = compileExp(&(exp->expression()));
-//    vector<string> strArgs;
-//    for (auto arg : exp->arguments())
-//      strArgs.push_back(compileExp((&arg)->get()));
-//    string strArg = boost::algorithm::join(strArgs, ", ");
-//    string result = strFunc + "(" + strArg + ")";
-//    // if (debug)
-//    //    result = "(FunctionCall: " + result + ")";
-//    return result;
-// }
-
 // string LlvmCompiler::compileExp(NewExpression const* exp) {
 //    // return "new " + compileTypeName(exp->typeName());
 //    return "new";

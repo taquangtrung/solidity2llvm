@@ -24,6 +24,8 @@ prerelease.txt
 *.la
 *.a
 *.lib
+*.bc
+*.ll
 
 # Executables
 *.exe

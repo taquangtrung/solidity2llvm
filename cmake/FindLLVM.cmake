@@ -109,32 +109,23 @@ if (LLVM_FOUND)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  execute_process(
-    COMMAND ${LLVM_CONFIG_EXECUTABLE} --libfiles  --libs core bitreader asmparser analysis
-    OUTPUT_VARIABLE LLVM_LIBS
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+  if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # Trung: manually configure for MacOS, need to fix later
+    set(LLVM_LIBS "${LLVM_LIBRARY_DIRS}/libLLVM.dylib")
+  else ()
+    execute_process(
+      COMMAND ${LLVM_CONFIG_EXECUTABLE} --libfiles
+      OUTPUT_VARIABLE LLVM_LIBS
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  endif()
+
 
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --prefix
     OUTPUT_VARIABLE LLVM_INSTALL_PREFIX
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-
-  if (NOT ${LLVM_VERSION} VERSION_LESS "3.8.0")
-    execute_process(
-        COMMAND ${LLVM_CONFIG_EXECUTABLE} --shared-mode
-        OUTPUT_VARIABLE _LLVM_SHARED_MODE
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if (_LLVM_SHARED_MODE STREQUAL "shared")
-        set(LLVM_SHARED_MODE ON)
-    else()
-        set(LLVM_SHARED_MODE OFF)
-    endif()
-  else()
-    set(LLVM_SHARED_MODE OFF)
-  endif()
 
   # potentially add include dir from binary dir for non-installed LLVM
   execute_process(

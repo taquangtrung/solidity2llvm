@@ -70,6 +70,7 @@ class ContractDefinition;
 class FunctionDefinition;
 class SourceUnit;
 class Compiler;
+class LlvmCompiler;
 class GlobalContext;
 class Natspec;
 class DeclarationContainer;
@@ -265,6 +266,11 @@ public:
 	/// Prerequisite: Successful compilation.
 	Json::Value assemblyJSON(std::string const& _contractName, StringMap const& _sourceCodes = StringMap()) const;
 
+	/// @return a verbose text representation of LLVM IR
+	/// @arg _sourceCodes is the map of input files to source code strings
+	/// Prerequisite: Successful compilation.
+	std::string llvmString(std::string const& _contractName, StringMap _sourceCodes = StringMap()) const;
+
 	/// @returns a JSON representing the contract ABI.
 	/// Prerequisite: Successful call to parse or compile.
 	Json::Value const& contractABI(std::string const& _contractName) const;
@@ -308,6 +314,7 @@ private:
 	{
 		ContractDefinition const* contract = nullptr;
 		std::shared_ptr<Compiler> compiler;
+		std::shared_ptr<LlvmCompiler> llvmCompiler;
 		eth::LinkerObject object; ///< Deployment object (includes the runtime sub-object).
 		eth::LinkerObject runtimeObject; ///< Runtime object.
 		std::string yulIR; ///< Experimental Yul IR code.

@@ -39,6 +39,7 @@
 #include <libsolidity/ast/AST.h>
 #include <libsolidity/ast/TypeProvider.h>
 #include <libsolidity/codegen/Compiler.h>
+#include <libsolidity/llvm/LlvmCompiler.h>
 #include <libsolidity/formal/ModelChecker.h>
 #include <libsolidity/interface/ABI.h>
 #include <libsolidity/interface/Natspec.h>
@@ -620,6 +621,17 @@ Json::Value CompilerStack::assemblyJSON(string const& _contractName, StringMap c
 		return Json::Value();
 }
 
+/// compile Solidity to LLVM IR
+string CompilerStack::llvmString(string const& _contractName, StringMap _sourceCodes) const
+{
+		Contract const& currentContract = contract(_contractName);
+		ContractDefinition const* contract = currentContract.contract;
+		if (currentContract.llvmCompiler)
+				return currentContract.llvmCompiler->llvmString(contract, _sourceCodes);
+		else
+				return string();
+}
+
 vector<string> CompilerStack::sourceNames() const
 {
 	vector<string> names;
@@ -958,6 +970,11 @@ void CompilerStack::compileContract(
 
 	shared_ptr<Compiler> compiler = make_shared<Compiler>(m_evmVersion, m_optimiserSettings);
 	compiledContract.compiler = compiler;
+
+	// Llvm Compiler
+	shared_ptr<LlvmCompiler> llvmCompiler = make_shared<LlvmCompiler>();
+	compiledContract.llvmCompiler = llvmCompiler;
+
 
 	bytes cborEncodedMetadata = createCBORMetadata(
 		metadata(compiledContract),

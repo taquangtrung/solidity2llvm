@@ -113,6 +113,8 @@ set(sources
 	interface/StandardCompiler.h
 	interface/Version.cpp
 	interface/Version.h
+	llvm/LlvmCompiler.h
+	llvm/LlvmCompiler.cpp
 	parsing/DocStringParser.cpp
 	parsing/DocStringParser.h
 	parsing/Parser.cpp
@@ -153,3 +155,11 @@ endif()
 if (${CVC4_FOUND})
   target_link_libraries(solidity PUBLIC CVC4::CVC4)
 endif()
+
+# Tutorial for embedding LLVM:
+# https://llvm.org/docs/CMake.html#embedding-llvm-in-your-project
+
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+target_link_libraries(solidity PUBLIC ${LLVM_LIBS})
+message(STATUS "LLVM LIBS: ${LLVM_LIBS}")

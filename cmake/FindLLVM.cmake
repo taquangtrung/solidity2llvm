@@ -31,6 +31,10 @@ if (NOT LLVM_ROOT AND DEFINED ENV{LLVM_ROOT})
     file(TO_CMAKE_PATH "$ENV{LLVM_ROOT}" LLVM_ROOT)
 endif()
 
+if(NOT LLVM_FIND_VERSION)
+  set(LLVM_FIND_VERSION 0)
+endif()
+
 # if the user specified LLVM_ROOT, use that and fail otherwise
 if (LLVM_ROOT)
   find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config HINTS ${LLVM_ROOT}/bin DOC "llvm-config executable" NO_DEFAULT_PATH)

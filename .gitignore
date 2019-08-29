@@ -11,6 +11,11 @@ prerelease.txt
 *.gch
 *.pch
 
+# LLVM
+*.bc
+*.ll
+*.bin
+
 # Compiled Dynamic libraries
 *.so
 *.dylib

@@ -1,6 +1,6 @@
-# Testing with Solidity 0.5.11
+# Gas estimation:
 
-## Gas estimation:
+  - Testing with Solidity 0.5.11
 
   - Command:
 
@@ -39,3 +39,14 @@
        get():	413
        set(uint256):	20247
     ```
+  - Gas details of AST:
+
+    ```
+    solc --ast storage.sol
+    ```
+
+# Output EVM assembly
+
+  ```
+  solc --asm storage.sol
+  ```

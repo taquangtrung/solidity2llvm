@@ -1,4 +1,5 @@
 #include <iostream>
+#include <typeinfo>
 #include <boost/algorithm/string/join.hpp>
 
 #include "libsolidity/llvm/LlvmCompiler.h"
@@ -9,8 +10,6 @@ namespace legacy = llvm::legacy;
 using namespace std;
 using namespace dev;
 using namespace dev::solidity;
-
-
 
 
 bool debug = true;
@@ -24,6 +23,21 @@ void LogError(const char *msg, ASTNode const& node) {
 	ASTPrinter printer(node);
 	std::cerr << "\n!!! Error: " << msg << "\n";
 	printer.print(std::cerr);
+	std::cerr << endl;
+	exit (1);
+}
+
+void LogError(const char *msg, ASTNode const* node) {
+	ASTPrinter printer(*node);
+	std::cerr << "\n!!! Error: " << msg << "\n";
+	printer.print(std::cerr);
+	std::cerr << endl;
+	exit (1);
+}
+
+void LogError(const char *msg, Type const* type) {
+	std::cerr << "\n!!! Error: " << msg << "\n";
+	std::cerr << type->toString();
 	std::cerr << endl;
 	exit (1);
 }
@@ -117,10 +131,6 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// prepare environment
 	GlobalNamedValues.clear();
 
-	// structs
-	for (const StructDefinition* st: contract->definedStructs())
-		compileStructDecl(st);
-
 	// // enum
 	// // for (const EnumDefinition* en: contract->definedStructs())
 	// //   result = result + "\n\n" + compileStruct(st);
@@ -128,6 +138,10 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// make contract
 	string contractName = contract->name();
 	Module = llvm::make_unique<llvm::Module>(contractName, Context);
+
+	// structs
+	for (const StructDefinition* st: contract->definedStructs())
+		compileStructDecl(st);
 
 	// perform optimization passes
 	FunctionPM = llvm::make_unique<legacy::FunctionPassManager>(Module.get());
@@ -162,13 +176,22 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
 	string name = st->name();
-	// cout << "Struct Name: " << st->fullyQualifiedName() << endl;
+
+	cout << "Compiling Struct: " << st->name() << endl;
 	vector<llvm::Type*> elements;
 	for (auto var : st->members()) {
-		elements.push_back(compileTypeName(var->typeName()));
+		llvm::Type* elemType = compileType(var->type());
+		cout << "Elem Type: " << stringOf(elemType) << endl;
+		cout << "    Type ID: " << elemType->getTypeID();
+		elements.push_back(elemType);
 	}
-	auto llvmStruct = llvm::StructType::create(Context, elements, name, true);
+	llvm::StructType* llvmStruct =
+		llvm::StructType::create(Context, elements, name, true);
 	NamedStructTypes[name] = llvmStruct;
+
+	cout << "Update Struct: " << name << " : " << stringOf(llvmStruct) << endl;
+	cout << "1";
+
 	return llvmStruct;
 }
 
@@ -660,7 +683,7 @@ Value* LlvmCompiler::compileExp(FunctionCall const* exp) {
 }
 
 Value* LlvmCompiler::compileExp(NewExpression const* exp) {
-	// TODO
+	// TODO: need to implement
 	return nullptr;
 }
 
@@ -754,6 +777,8 @@ llvm::Type* LlvmCompiler::compileTypeName(TypeName const* type) {
 	if (auto t = dynamic_cast<ArrayTypeName const*>(type)) {
 		if (t != nullptr) return compileTypeName(t);
 	}
+
+	LogError("compileTypeName: Unknown TypeName: ", type);
 	return nullptr;
 }
 
@@ -787,70 +812,89 @@ llvm::Type* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 }
 
 llvm::Type* LlvmCompiler::compileType(TypePointer type) {
-  if (auto t = dynamic_cast<IntegerType const*>(type)) {
-		if (t != nullptr)
+	if (auto t = dynamic_cast<IntegerType const*>(type)) {
+		if (t != NULL) {
 			return llvm::IntegerType::get(Context, t->numBits());
+		}
 	}
 	else if (auto t = dynamic_cast<FixedPointType const*>(type)) {
-		if (t != nullptr) LogError("FixedPointType");
+		if (t != nullptr)
+			LogError("FixedPointType");
 	}
 	else if (auto t = dynamic_cast<RationalNumberType const*>(type)) {
-		if (t != nullptr) LogError("RationalNumberType");
+		if (t != nullptr)
+			LogError("RationalNumberType");
 	}
 	else if (auto t = dynamic_cast<StringLiteralType const*>(type)) {
-		if (t != nullptr) LogError("StringLiteralType");
-		// if (t != nullptr)
-		// 	return llvm::IntegerType::get(Context, t->numBits());
+		if (t != nullptr)
+			LogError("StringLiteralType");
 	}
 	else if (dynamic_cast<FixedBytesType const*>(type)) {
-		if (t != nullptr) LogError("FixedBytesType");
+		if (t != nullptr)
+			LogError("FixedBytesType");
 	}
 	else if (auto t =  dynamic_cast<BoolType const*>(type)) {
 		if (t != nullptr)
-			// consider BoolType as an IntType 8 bit
 			return llvm::IntegerType::get(Context, 8);
 	}
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
-		if (t != nullptr) {
-			cout << "TypeName: " << t->canonicalName() << endl;
-			LogError("StructType");
-		}
+		if (t != nullptr)
+			return NamedStructTypes[t->canonicalName()];
 	}
 	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
-		if (t != nullptr) LogError("ArrayType");
+		if (t != nullptr)
+			LogError("ArrayType");
 	}
 	else if (auto t = dynamic_cast<ContractType const*>(type)) {
-		if (t != nullptr) LogError("ContractType");
+		if (t != nullptr)
+			LogError("ContractType");
 	}
 	else if (auto t = dynamic_cast<EnumType const*>(type)) {
-		if (t != nullptr) LogError("EnumType");
+		if (t != nullptr)
+			LogError("EnumType");
 	}
 	else if (auto t = dynamic_cast<TupleType const*>(type)) {
-		if (t != nullptr) LogError("TupleType");
+		if (t != nullptr)
+			LogError("TupleType");
 	}
 	else if (auto t = dynamic_cast<FunctionType const*>(type)) {
-		if (t != nullptr) LogError("FunctionType");
+		if (t != nullptr)
+			LogError("FunctionType");
 	}
 	else if (auto t = dynamic_cast<MappingType const*>(type)) {
-		if (t != nullptr) LogError("MappingType");
+		if (t != nullptr)
+			LogError("MappingType");
 	}
 	else if (auto t = dynamic_cast<TypeType const*>(type)) {
-		if (t != nullptr) LogError("TypeType");
+		if (t != nullptr)
+			LogError("TypeType");
 	}
 	else if (auto t = dynamic_cast<ModifierType const*>(type)) {
-		if (t != nullptr) LogError("ModifierType");
+		if (t != nullptr)
+			LogError("ModifierType");
 	}
 	else if (auto t = dynamic_cast<ModuleType const*>(type)) {
-		if (t != nullptr) LogError("ModuleType");
+		if (t != nullptr)
+			LogError("ModuleType");
 	}
 	else if (auto t = dynamic_cast<MagicType const*>(type)) {
-		if (t != nullptr) LogError("MagicType");
+		if (t != nullptr)
+			LogError("MagicType");
 	}
 	else if (auto t = dynamic_cast<InaccessibleDynamicType const*>(type)) {
-		if (t != nullptr) LogError("InaccessibleDynamicType");
+		if (t != nullptr)
+			LogError("InaccessibleDynamicType");
+	}
+	else if (auto t = dynamic_cast<AddressType const*>(type)) {
+		if (t != nullptr) {
+			// Soldity's address is 20 bytes
+			auto byteType = llvm::IntegerType::get(Context, 8);
+			return llvm::ArrayType::get(byteType, 20);
+		}
 	}
 
-	LogError("compileType: unknown type");
+	LogError("compileType: Unknown Type: ", type);
+
 	return nullptr;
 }
 
@@ -864,6 +908,15 @@ string LlvmCompiler::stringOf(llvm::Module* module) {
 		return "(nullptr module)";
 
 	string result = "";
+
+	llvm::LLVMContext &context = module->getContext();
+
+	// structs
+	for (llvm::Type* structType : module->getIdentifiedStructTypes())
+		result = result + "\n**************\n\n" + stringOf(structType);
+	return result;
+
+	// functions
 	for (auto &func : module->getFunctionList())
 		result = result + "\n**************\n\n" + stringOf(&func);
 	return result;
@@ -891,14 +944,29 @@ string LlvmCompiler::stringOf(BasicBlock* block) {
 	return result;
 }
 
-string LlvmCompiler::stringOf(Value* value) {
+string LlvmCompiler::stringOf(llvm::Value* value) {
 	if (value == nullptr)
 		return "(nullptr value)";
 
-	string strValue;
-	llvm::raw_string_ostream rso(strValue);
+	string result;
+	llvm::raw_string_ostream rso(result);
 	value->print(rso);
-	return strValue;
+	return result;
+}
+
+string LlvmCompiler::stringOf(llvm::Type* typ) {
+	if (typ == nullptr)
+		return "(nullptr type)";
+
+	cout << "print type: " << typ->getTypeID() << endl;
+
+	string result;
+	llvm::raw_string_ostream rso(result);
+	typ->print(rso);
+
+	cout << "print type string: " << result << endl;
+
+	return result;
 }
 
 Value* LlvmCompiler::findNamedValue(string name) {

@@ -109,7 +109,8 @@ class LlvmCompiler {
 	string stringOf(llvm::Module* module);
 	string stringOf(llvm::Function* func);
 	string stringOf(llvm::BasicBlock* block);
-	string stringOf(Value* value);
+	string stringOf(llvm::Value* value);
+	string stringOf(llvm::Type* typ);
 	Value* findNamedValue(string name);
 
 private:

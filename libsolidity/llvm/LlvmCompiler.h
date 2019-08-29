@@ -59,7 +59,7 @@ class LlvmCompiler {
 	Value* compileGlobalVarDecl(const VariableDeclaration* var);
 	Value* compileLocalVarDecl(VariableDeclaration& var);
 	Value* compileLocalVarDecl(VariableDeclaration& var, const Expression* value);
-	llvm::Function* compileFunc(FunctionDefinition const* func);
+	llvm::Function* compileFunction(FunctionDefinition const* func);
 
 	// compile statements
 	void compileStmt(Statement const& stmt);

@@ -84,7 +84,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap so
 	LoopStack.empty();
 
 
-	cout << "start to compile to LLVM IR..." << endl;
+	cout << "** Start to compile to LLVM IR..." << endl;
 
 	compilingSourceCodes = sourceCodes;
 
@@ -158,13 +158,16 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 	FunctionPM->doInitialization();
 
-	// global variables
+	cout << "== Start to compile global var..." << endl;
+
 	for (const VariableDeclaration* var: contract->stateVariables())
 		compileGlobalVarDecl(var);
 
+	cout << "== Start to compile function..." << endl;
+
 	// functions
 	for (const FunctionDefinition* func: contract->definedFunctions())
-		compileFunc(func);
+		compileFunction(func);
 
 
 }
@@ -177,34 +180,35 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
 	string name = st->name();
 
-	cout << "Compiling Struct: " << st->name() << endl;
+	cout << "Compiling Struct: " << name << endl;
+
 	vector<llvm::Type*> elements;
 	for (auto var : st->members()) {
 		llvm::Type* elemType = compileType(var->type());
-		cout << "Elem Type: " << stringOf(elemType) << endl;
-		cout << "    Type ID: " << elemType->getTypeID();
 		elements.push_back(elemType);
 	}
+
 	llvm::StructType* llvmStruct =
 		llvm::StructType::create(Context, elements, name, true);
-	NamedStructTypes[name] = llvmStruct;
 
-	cout << "Update Struct: " << name << " : " << stringOf(llvmStruct) << endl;
-	cout << "1";
+	NamedStructTypes[name] = llvmStruct;
 
 	return llvmStruct;
 }
 
-
 Value* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	llvm::Type* type = compileType(var->type());
-	// Value* initVal = compileExp(var->value().get());
 	string name = var->name();
+
+	cout << "Compiling Global Var: " << name << endl;
 
 	llvm::GlobalVariable* llvmVar =
 		new llvm::GlobalVariable(*Module, type, false,
 								 llvm::GlobalVariable::CommonLinkage,
 								 nullptr, name);
+
+	cout << "Finish compiling: " << name << endl;
+
 	GlobalNamedValues[name] = llvmVar;
 	return llvmVar;
 }
@@ -227,12 +231,14 @@ Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 	return Builder.CreateStore(llvmValue, llvmVar);
 }
 
-llvm::Function* LlvmCompiler::compileFunc(const FunctionDefinition* func) {
+llvm::Function* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 	// prepare environment
 	LocalNamedValues.clear();
 
 	// function name
 	string funcName = func->name();
+
+	cout << "Compiling function: " << funcName << endl;
 
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
@@ -743,8 +749,8 @@ Value* LlvmCompiler::compileExp(Literal const *exp) {
 
 	case Token::Number: {
 		// FIXME: temporarily fix to 64 bit, signed integer
-		llvm::IntegerType* intTyp = llvm::IntegerType::get(Context, 64);
-		return llvm::ConstantInt::get(intTyp, atoi(content.data()), true);
+		llvm::IntegerType* intType = llvm::IntegerType::get(Context, 64);
+		return llvm::ConstantInt::get(intType, atoi(content.data()), true);
 	}
 
 	case Token::CommentLiteral:
@@ -948,25 +954,22 @@ string LlvmCompiler::stringOf(llvm::Value* value) {
 	if (value == nullptr)
 		return "(nullptr value)";
 
-	string result;
-	llvm::raw_string_ostream rso(result);
-	value->print(rso);
-	return result;
+	string str;
+	llvm::raw_string_ostream result(str);
+	value->print(result);
+
+	return result.str();
 }
 
-string LlvmCompiler::stringOf(llvm::Type* typ) {
-	if (typ == nullptr)
+string LlvmCompiler::stringOf(llvm::Type* type) {
+	if (type == nullptr)
 		return "(nullptr type)";
 
-	cout << "print type: " << typ->getTypeID() << endl;
+	string str;
+	llvm::raw_string_ostream result(str);
+	type->print(result);
 
-	string result;
-	llvm::raw_string_ostream rso(result);
-	typ->print(rso);
-
-	cout << "print type string: " << result << endl;
-
-	return result;
+	return result.str();
 }
 
 Value* LlvmCompiler::findNamedValue(string name) {

@@ -113,6 +113,8 @@ set(sources
 	interface/StandardCompiler.h
 	interface/Version.cpp
 	interface/Version.h
+	interface/Debug.cpp
+	interface/Debug.h
 	llvm/LlvmCompiler.h
 	llvm/LlvmCompiler.cpp
 	parsing/DocStringParser.cpp

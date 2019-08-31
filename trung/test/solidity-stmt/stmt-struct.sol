@@ -8,7 +8,8 @@ contract SimpleStruct {
 
     uint storedData;
 
-    Foo a = Foo({value: 1, data: 2}) ;
+    /* Foo a = Foo({value: 1, data: 2}) ; */
+    Foo b;
 
     function set(uint x) public {
 

@@ -12,8 +12,6 @@ using namespace dev;
 using namespace dev::solidity;
 
 
-bool debug = true;
-
 void LogError(const char *msg) {
 	fprintf(stderr, "\n!!!Error: %s\n", msg);
 	exit (1);
@@ -47,12 +45,12 @@ void LogWarning(const char *msg) {
 }
 
 void LogDebug(string msg) {
-	if (debug)
+	if (DebugLLVM)
 		cout << "!! Debug: " << msg << endl;
 }
 
 void LogDebug(string msg, ASTNode const& node) {
-	if (debug) {
+	if (DebugLLVM) {
 		llvm::outs() << "!! Debug: " << msg;
 		ASTPrinter printer(node);
 		printer.print(std::cerr);
@@ -61,7 +59,7 @@ void LogDebug(string msg, ASTNode const& node) {
 }
 
 void LogDebug(string msg, llvm::Value* value) {
-	if (debug) {
+	if (DebugLLVM) {
 		llvm::outs() << "!! Debug: " << msg;
 		value->print(llvm::outs());
 		llvm::outs() << "\n";
@@ -69,7 +67,7 @@ void LogDebug(string msg, llvm::Value* value) {
 }
 
 void LogDebug(string msg, llvm::Type* type) {
-	if (debug) {
+	if (DebugLLVM) {
 		llvm::outs() << "!! Debug: " << msg;
 		type->print(llvm::outs());
 		llvm::outs() << "\n";
@@ -79,7 +77,8 @@ void LogDebug(string msg, llvm::Type* type) {
 /*
   _sourceCodes: maps name of a contract to its source code
 */
-string LlvmCompiler::llvmString(const ContractDefinition* contract, StringMap sourceCodes) {
+string LlvmCompiler::llvmString(const ContractDefinition* contract,
+																StringMap sourceCodes) {
 	// llvm::IRBuilder<> Builder1(Context);
 	LoopStack.empty();
 
@@ -191,6 +190,9 @@ llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
 	llvm::StructType* llvmStruct =
 		llvm::StructType::create(Context, elements, name, true);
 
+	LogDebug("+++ Compiling Struct");
+
+	cout << "Update Struct Decl: " << name << "  type: " << llvmStruct << endl;
 	NamedStructTypes[name] = llvmStruct;
 
 	return llvmStruct;
@@ -202,9 +204,14 @@ Value* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 
 	cout << "Compiling Global Var: " << name << endl;
 
+	if (type == nullptr)
+		cout << " type: null " << endl;
+	else
+		cout << " type: not null " << endl;
+
 	llvm::GlobalVariable* llvmVar =
 		new llvm::GlobalVariable(*Module, type, false,
-								 llvm::GlobalVariable::CommonLinkage,
+								 llvm::GlobalVariable::PrivateLinkage,
 								 nullptr, name);
 
 	cout << "Finish compiling: " << name << endl;
@@ -225,7 +232,7 @@ Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 }
 
 Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
-                                         const Expression* value) {
+										 const Expression* value) {
 	auto llvmVar = compileLocalVarDecl(var);
 	auto llvmValue = compileExp(value);
 	return Builder.CreateStore(llvmValue, llvmVar);
@@ -818,8 +825,11 @@ llvm::Type* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 }
 
 llvm::Type* LlvmCompiler::compileType(TypePointer type) {
+	if (type == nullptr)
+		LogError("compileType: input is null type");
+
 	if (auto t = dynamic_cast<IntegerType const*>(type)) {
-		if (t != NULL) {
+		if (t != nullptr) {
 			return llvm::IntegerType::get(Context, t->numBits());
 		}
 	}
@@ -844,8 +854,13 @@ llvm::Type* LlvmCompiler::compileType(TypePointer type) {
 			return llvm::IntegerType::get(Context, 8);
 	}
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
-		if (t != nullptr)
-			return NamedStructTypes[t->canonicalName()];
+		if (t != nullptr) {
+			string name = t->canonicalName();
+			cout << "Compile Type: Struct: Name: " << name << endl;
+			llvm::StructType* outputType = NamedStructTypes[name];
+			cout << "Output type: " << outputType << endl;
+			return outputType;
+		}
 	}
 	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
 		if (t != nullptr)

@@ -5,6 +5,7 @@
 #include "libsolidity/ast/ASTVisitor.h"
 #include "libsolidity/ast/Types.h"
 #include "libsolidity/ast/TypeProvider.h"
+#include "libsolidity/interface/Debug.h"
 #include "libevmasm/LinkerObject.h"
 
 #include "llvm/IR/Constants.h"

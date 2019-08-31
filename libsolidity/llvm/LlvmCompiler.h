@@ -131,6 +131,7 @@ private:
 	llvm::LLVMContext Context;
 	llvm::IRBuilder<> Builder;
 	std::unique_ptr<llvm::Module> Module;
+	std::string ContractName;
 	std::map<std::string, Value *> GlobalNamedValues;
 	std::map<std::string, Value *> LocalNamedValues;
 	std::map<std::string, llvm::StructType *> NamedStructTypes;

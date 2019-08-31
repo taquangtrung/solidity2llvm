@@ -31,17 +31,17 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract,
 	LoopStack.empty();
 
 
-	cout << "** Start to compile to LLVM IR..." << endl;
+	cout << endl << "==========================" << endl ;
+	cout << "** Compiling Solidity to LLVM IR ..." << endl;
 
 	compilingSourceCodes = sourceCodes;
-
 	compileContract(contract);
 
 	// validate module
 	llvm::verifyModule(*Module);
 
-
-	cout << "====== OUTPUT LLVM IR ======" << endl << endl;
+	cout << endl << "==========================" << endl ;
+	cout << "** Output LLVM IR: " << endl << endl;
 	Module->print(llvm::outs(), nullptr);
 
 	std::error_code EC;
@@ -83,8 +83,8 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// //   result = result + "\n\n" + compileStruct(st);
 
 	// make contract
-	string contractName = contract->name();
-	Module = llvm::make_unique<llvm::Module>(contractName, Context);
+	ContractName = contract->name();
+	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
 
 	// structs
 	for (const StructDefinition* st: contract->definedStructs())
@@ -105,12 +105,8 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 	FunctionPM->doInitialization();
 
-	cout << "== Start to compile global var..." << endl;
-
 	for (const VariableDeclaration* var: contract->stateVariables())
 		compileGlobalVarDecl(var);
-
-	cout << "== Start to compile function..." << endl;
 
 	// functions
 	for (const FunctionDefinition* func: contract->definedFunctions())
@@ -125,9 +121,7 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
  ********************************************************/
 
 llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
-	string name = st->name();
-
-	cout << "Compiling Struct: " << name << endl;
+	string name = ContractName + "." + st->name();
 
 	vector<llvm::Type*> elements;
 	for (auto var : st->members()) {
@@ -135,12 +129,9 @@ llvm::StructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
 		elements.push_back(elemType);
 	}
 
-	llvm::StructType* llvmStruct =
-		llvm::StructType::create(Context, elements, name, true);
+	llvm::StructType* llvmStruct = llvm::StructType::create(Context, elements,
+																													name, true);
 
-	LogDebug("+++ Compiling Struct");
-
-	cout << "Update Struct Decl: " << name << "  type: " << llvmStruct << endl;
 	NamedStructTypes[name] = llvmStruct;
 
 	return llvmStruct;
@@ -150,22 +141,15 @@ Value* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	llvm::Type* type = compileType(var->type());
 	string name = var->name();
 
-	cout << "Compiling Global Var: " << name << endl;
+	auto outputVar = new llvm::GlobalVariable(*Module, type, false,
+																					llvm::GlobalVariable::PrivateLinkage,
+																					nullptr, name);
+	// FIXME: need to initialize var here
 
-	if (type == nullptr)
-		cout << " type: null " << endl;
-	else
-		cout << " type: not null " << endl;
 
-	llvm::GlobalVariable* llvmVar =
-		new llvm::GlobalVariable(*Module, type, false,
-								 llvm::GlobalVariable::PrivateLinkage,
-								 nullptr, name);
+	GlobalNamedValues[name] = outputVar;
 
-	cout << "Finish compiling: " << name << endl;
-
-	GlobalNamedValues[name] = llvmVar;
-	return llvmVar;
+	return outputVar;
 }
 
 Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
@@ -173,17 +157,17 @@ Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 	llvm::Type* type = compileType(var.type());
 	string name = var.name();
 
-	auto llvmVar = Builder.CreateAlloca(type, nullptr, name);
-	LocalNamedValues[name] = llvmVar;
+	auto outputVar = Builder.CreateAlloca(type, nullptr, name);
+	LocalNamedValues[name] = outputVar;
 
-	return llvmVar;
+	return outputVar;
 }
 
 Value* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 										 const Expression* value) {
-	auto llvmVar = compileLocalVarDecl(var);
+	auto outputVar = compileLocalVarDecl(var);
 	auto llvmValue = compileExp(value);
-	return Builder.CreateStore(llvmValue, llvmVar);
+	return Builder.CreateStore(llvmValue, outputVar);
 }
 
 llvm::Function* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
@@ -192,8 +176,6 @@ llvm::Function* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 
 	// function name
 	string funcName = func->name();
-
-	cout << "Compiling function: " << funcName << endl;
 
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
@@ -804,9 +786,11 @@ llvm::Type* LlvmCompiler::compileType(TypePointer type) {
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
 		if (t != nullptr) {
 			string name = t->canonicalName();
-			cout << "Compile Type: Struct: Name: " << name << endl;
 			llvm::StructType* outputType = NamedStructTypes[name];
-			cout << "Output type: " << outputType << endl;
+
+			if (outputType == nullptr)
+				LogError("Compiling Struct Type: unknown struct of name: ", name);
+
 			return outputType;
 		}
 	}

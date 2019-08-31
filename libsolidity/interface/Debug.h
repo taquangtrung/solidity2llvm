@@ -28,6 +28,8 @@ namespace solidity
 extern bool DebugLLVM;
 
 void LogError(const char *msg);
+void LogError(const char *msg, const char* content);
+void LogError(const char *msg, string content);
 void LogError(const char *msg, ASTNode const& node);
 void LogError(const char *msg, ASTNode const* node);
 void LogError(const char *msg, Type const* type);

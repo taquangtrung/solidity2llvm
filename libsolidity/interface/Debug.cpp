@@ -21,6 +21,16 @@ void dev::solidity::LogError(const char *msg) {
 	exit (1);
 }
 
+void dev::solidity::LogError(const char *msg, const char *content) {
+	fprintf(stderr, "\n!!!Error: %s: %s\n", msg, content);
+	exit (1);
+}
+
+void dev::solidity::LogError(const char *msg, string content) {
+	fprintf(stderr, "\n!!!Error: %s: %s\n", msg, content.data());
+	exit (1);
+}
+
 void dev::solidity::LogError(const char *msg, ASTNode const& node) {
 	ASTPrinter printer(node);
 	std::cerr << "\n!!! Error: " << msg << "\n";

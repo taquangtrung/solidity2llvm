@@ -1,3 +1,12 @@
+/*
+	This file is not a part of Solidity.
+*/
+/**
+ * @author Ta Quang Trung.
+ * @date 2018
+ * Debugging
+ */
+
 #pragma once
 
 #include "libsolidity/ast/AST.h"

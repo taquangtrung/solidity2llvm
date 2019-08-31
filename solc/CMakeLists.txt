@@ -21,3 +21,8 @@ if(SOLC_LINK_STATIC AND UNIX AND NOT APPLE)
 		LINK_SEARCH_END_STATIC ON
 	)
 endif()
+
+# LLVM
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+target_link_libraries(solc PUBLIC ${LLVM_LIBS})

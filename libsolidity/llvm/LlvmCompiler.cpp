@@ -1,3 +1,13 @@
+/*
+	This file is not a part of Solidity.
+*/
+/**
+ * @author Ta Quang Trung.
+ * @date 2018
+ * Debugging
+ */
+
+
 #include <iostream>
 #include <typeinfo>
 #include <boost/algorithm/string/join.hpp>
@@ -11,68 +21,6 @@ using namespace std;
 using namespace dev;
 using namespace dev::solidity;
 
-
-void LogError(const char *msg) {
-	fprintf(stderr, "\n!!!Error: %s\n", msg);
-	exit (1);
-}
-
-void LogError(const char *msg, ASTNode const& node) {
-	ASTPrinter printer(node);
-	std::cerr << "\n!!! Error: " << msg << "\n";
-	printer.print(std::cerr);
-	std::cerr << endl;
-	exit (1);
-}
-
-void LogError(const char *msg, ASTNode const* node) {
-	ASTPrinter printer(*node);
-	std::cerr << "\n!!! Error: " << msg << "\n";
-	printer.print(std::cerr);
-	std::cerr << endl;
-	exit (1);
-}
-
-void LogError(const char *msg, Type const* type) {
-	std::cerr << "\n!!! Error: " << msg << "\n";
-	std::cerr << type->toString();
-	std::cerr << endl;
-	exit (1);
-}
-
-void LogWarning(const char *msg) {
-	fprintf(stderr, "\n!!! Warning: %s\n", msg);
-}
-
-void LogDebug(string msg) {
-	if (DebugLLVM)
-		cout << "!! Debug: " << msg << endl;
-}
-
-void LogDebug(string msg, ASTNode const& node) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
-		ASTPrinter printer(node);
-		printer.print(std::cerr);
-		std::cerr << endl;
-	}
-}
-
-void LogDebug(string msg, llvm::Value* value) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
-		value->print(llvm::outs());
-		llvm::outs() << "\n";
-	}
-}
-
-void LogDebug(string msg, llvm::Type* type) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
-		type->print(llvm::outs());
-		llvm::outs() << "\n";
-	}
-}
 
 /*
   _sourceCodes: maps name of a contract to its source code

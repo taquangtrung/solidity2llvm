@@ -69,12 +69,12 @@ add_subdirectory(libsolc)
 
 if (NOT EMSCRIPTEN)
 	add_subdirectory(solc)
-	if (LLL)
-		add_subdirectory(liblll)
-		add_subdirectory(lllc)
-	endif()
+	# if (LLL)                         # Trung: temporarily disable
+	# 	add_subdirectory(liblll)
+	# 	add_subdirectory(lllc)
+	# endif()
 endif()
 
-if (TESTS AND NOT EMSCRIPTEN)
-	add_subdirectory(test)
-endif()
+# if (TESTS AND NOT EMSCRIPTEN)        # Trung: temporarily disable
+# 	add_subdirectory(test)
+# endif()

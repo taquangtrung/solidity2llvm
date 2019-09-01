@@ -33,6 +33,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Casting.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
@@ -44,16 +45,23 @@
 
 using namespace std;
 
-using Value = llvm::Value;
-using BasicBlock = llvm::BasicBlock;
+using LlContext = llvm::LLVMContext;
+using LlModule = llvm::Module;
+using LlFunction = llvm::Function;
+using LlBlock = llvm::BasicBlock;
+using LlValue = llvm::Value;
+using LlType = llvm::Type;
+using LlStructType = llvm::StructType;
+using LlFunctionType = llvm::FunctionType;
+using LlGlobalVar = llvm::GlobalVariable;
 
 namespace dev {
 
 namespace solidity {
 
 typedef struct _LoopInfo {
-	BasicBlock* loopHead;
-	BasicBlock* loopEnd;
+	LlBlock* loopHead;
+	LlBlock* loopEnd;
 } LoopInfo;
 
 class LlvmCompiler {
@@ -65,11 +73,11 @@ class LlvmCompiler {
 	void compileContract(const ContractDefinition* contract);
 
 	// compile declarations
-	llvm::StructType* compileStructDecl(const StructDefinition* st);
-	Value* compileGlobalVarDecl(const VariableDeclaration* var);
-	Value* compileLocalVarDecl(VariableDeclaration& var);
-	Value* compileLocalVarDecl(VariableDeclaration& var, const Expression* value);
-	llvm::Function* compileFunction(FunctionDefinition const* func);
+	LlStructType* compileStructDecl(const StructDefinition*);
+	LlValue* compileGlobalVarDecl(const VariableDeclaration*);
+	LlValue* compileLocalVarDecl(VariableDeclaration&);
+	LlValue* compileLocalVarDecl(VariableDeclaration&, const Expression*);
+	LlFunction* compileFunction(FunctionDefinition const*);
 
 	// compile statements
 	void compileStmt(Statement const& stmt);
@@ -88,53 +96,53 @@ class LlvmCompiler {
 	void compileStmt(ExpressionStatement const* stmt);
 
 	// compile expressions
-	Value* compileExp(Expression const* exp);
-	Value* compileExp(Conditional const* exp);
-	Value* compileExp(Assignment const* exp);
-	Value* compileExp(TupleExpression const* exp);
-	Value* compileExp(UnaryOperation const* exp);
-	Value* compileExp(BinaryOperation const* exp);
-	Value* compileExp(FunctionCall const* exp);
-	Value* compileExp(NewExpression const* exp);
-	Value* compileExp(MemberAccess const* exp);
-	Value* compileExp(IndexAccess const* exp);
-	Value* compileExp(PrimaryExpression const* exp);
-	Value* compileExp(Identifier const* exp);
-	Value* compileExp(ElementaryTypeNameExpression const* exp);
-	Value* compileExp(Literal const* exp);
+	LlValue* compileExp(Expression const*);
+	LlValue* compileExp(Conditional const*);
+	LlValue* compileExp(Assignment const*);
+	LlValue* compileExp(TupleExpression const*);
+	LlValue* compileExp(UnaryOperation const*);
+	LlValue* compileExp(BinaryOperation const*);
+	LlValue* compileExp(FunctionCall const*);
+	LlValue* compileExp(NewExpression const*);
+	LlValue* compileExp(MemberAccess const*);
+	LlValue* compileExp(IndexAccess const*);
+	LlValue* compileExp(PrimaryExpression const*);
+	LlValue* compileExp(Identifier const*);
+	LlValue* compileExp(ElementaryTypeNameExpression const*);
+	LlValue* compileExp(Literal const*);
 
 	// compile types
-	llvm::Type* compileTypeName(TypeName const* type);
-	llvm::Type* compileTypeName(ElementaryTypeName const* type);
-	llvm::Type* compileTypeName(UserDefinedTypeName const* type);
-	llvm::Type* compileTypeName(FunctionTypeName const* type);
-	llvm::Type* compileTypeName(Mapping const* type);
-	llvm::Type* compileTypeName(ArrayTypeName const* type);
-	llvm::Type* compileType(TypePointer type);
+	LlType* compileTypeName(TypeName const*);
+	LlType* compileTypeName(ElementaryTypeName const*);
+	LlType* compileTypeName(UserDefinedTypeName const*);
+	LlType* compileTypeName(FunctionTypeName const*);
+	LlType* compileTypeName(Mapping const*);
+	LlType* compileTypeName(ArrayTypeName const*);
+	LlType* compileType(TypePointer);
 
 	// compile a contract to string.
 	string llvmString(const ContractDefinition* contract, StringMap sourceCodes);
 
 	// supporting functions
-	string stringOf(llvm::Module* module);
-	string stringOf(llvm::Function* func);
-	string stringOf(llvm::BasicBlock* block);
-	string stringOf(llvm::Value* value);
-	string stringOf(llvm::Type* typ);
-	Value* findNamedValue(string name);
+	string stringOf(LlModule*);
+	string stringOf(LlFunction*);
+	string stringOf(LlBlock*);
+	string stringOf(LlValue*);
+	string stringOf(LlType*);
+	LlValue* findNamedValue(string);
 
 private:
 	const ContractDefinition* CompilingContract;
 	StringMap compilingSourceCodes;
 
 private:
-	llvm::LLVMContext Context;
+	LlContext Context;
 	llvm::IRBuilder<> Builder;
-	std::unique_ptr<llvm::Module> Module;
+	std::unique_ptr<LlModule> Module;
 	std::string ContractName;
-	std::map<std::string, Value *> GlobalNamedValues;
-	std::map<std::string, Value *> LocalNamedValues;
-	std::map<std::string, llvm::StructType *> NamedStructTypes;
+	std::map<std::string, LlValue *> GlobalNamedValues;
+	std::map<std::string, LlValue *> LocalNamedValues;
+	std::map<std::string, LlStructType *> NamedStructTypes;
 	std::unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
 	std::stack<LoopInfo> LoopStack;
 

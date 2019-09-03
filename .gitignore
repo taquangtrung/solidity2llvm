@@ -66,3 +66,4 @@ CMakeLists.txt.user
 # place to put local temporary files
 tmp
 solc
+module

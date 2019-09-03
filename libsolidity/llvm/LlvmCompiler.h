@@ -97,13 +97,13 @@ class LlvmCompiler {
 	void compileStmt(ExpressionStatement const* stmt);
 
 	// compile expressions
-	LLValue* compileExp(Expression const*, TypePointer type=nullptr);
+	LLValue* compileExp(Expression const*, LLType* type=nullptr);
 	LLValue* compileExp(Conditional const*);
 	LLValue* compileExp(Assignment const*);
 	LLValue* compileExp(TupleExpression const*);
 	LLValue* compileExp(UnaryOperation const*);
 	LLValue* compileExp(BinaryOperation const*);
-	LLValue* compileExp(FunctionCall const*, TypePointer type);
+	LLValue* compileExp(FunctionCall const*, LLType* type);
 	LLValue* compileExp(NewExpression const*);
 	LLValue* compileExp(MemberAccess const*);
 	LLValue* compileExp(IndexAccess const*);

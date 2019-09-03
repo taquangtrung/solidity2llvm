@@ -6,7 +6,7 @@ contract SimpleStruct {
         uint data;
     }
 
-    uint storedData;
+    uint storedData = 5;
 
     Foo a = Foo({value: 1, data: 2}) ;
     /* Foo b; */

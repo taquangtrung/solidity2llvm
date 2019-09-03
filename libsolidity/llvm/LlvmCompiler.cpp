@@ -144,7 +144,7 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 
 	if (Expression* v = var->value().get()) {
 		cout << "NOT NULL PTR" << endl;
-		initValue = llvm::dyn_cast<LLConstant>(compileExp(v, var->type()));
+		initValue = llvm::dyn_cast<LLConstant>(compileExp(v, type));
 	}
 	else
 		cout << "NULL PTR" << endl;
@@ -446,7 +446,7 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  *                Compile Expressions
  ********************************************************/
 
-LLValue* LlvmCompiler::compileExp(Expression const* exp, TypePointer type) {
+LLValue* LlvmCompiler::compileExp(Expression const* exp, LLType* type) {
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
 		if (e != nullptr) return compileExp(e);
 	}
@@ -616,7 +616,7 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 
 // Note: a FunctionCall in Solidity can be an ordinary function call,
 // a type casting, or a struct construction.
-LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, TypePointer type) {
+LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, LLType* type) {
 	FunctionCallAnnotation &annon = exp->annotation();
 
 	if (annon.kind == FunctionCallKind::FunctionCall) {
@@ -638,10 +638,10 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, TypePointer type) {
 	else if (annon.kind == FunctionCallKind::StructConstructorCall) {
 		vector<LLConstant*> arguments;
 		for (auto arg : exp->arguments())
-			if (auto argConst = llvm::dyn_cast<LLConstant>(compileExp((&arg)->get())))
-				arguments.push_back(argConst);
+			if (auto a = llvm::dyn_cast<LLConstant>(compileExp((&arg)->get())))
+				arguments.push_back(a);
 
-		if (auto structType = llvm::dyn_cast<LLStructType>(compileType(type)))
+		if (auto structType = llvm::dyn_cast<LLStructType>(type))
 			return llvm::ConstantStruct::get(structType, arguments);
 		else {
 			LogError("compileExp: FunctionCall: expect StructType");

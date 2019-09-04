@@ -51,7 +51,10 @@ using LLFunction = llvm::Function;
 using LLBlock = llvm::BasicBlock;
 using LLValue = llvm::Value;
 using LLConstant = llvm::Constant;
+using LLConstantInt = llvm::ConstantInt;
 using LLType = llvm::Type;
+using LLArrayType = llvm::ArrayType;
+using LLIntegerType = llvm::IntegerType;
 using LLStructType = llvm::StructType;
 using LLFunctionType = llvm::FunctionType;
 using LLGlobalVar = llvm::GlobalVariable;
@@ -74,7 +77,8 @@ class LlvmCompiler {
 	void compileContract(const ContractDefinition* contract);
 
 	// compile declarations
-	LLStructType* compileStructDecl(const StructDefinition*);
+	LLStructType* compileStructDefinition(const StructDefinition*);
+	LLIntegerType* compileEnumDefinition(const EnumDefinition*);
 	LLValue* compileGlobalVarDecl(const VariableDeclaration*);
 	LLValue* compileLocalVarDecl(VariableDeclaration&);
 	LLValue* compileLocalVarDecl(VariableDeclaration&, const Expression*);
@@ -97,13 +101,13 @@ class LlvmCompiler {
 	void compileStmt(ExpressionStatement const* stmt);
 
 	// compile expressions
-	LLValue* compileExp(Expression const*, LLType* type=nullptr);
+	LLValue* compileExp(Expression const*);
 	LLValue* compileExp(Conditional const*);
 	LLValue* compileExp(Assignment const*);
 	LLValue* compileExp(TupleExpression const*);
 	LLValue* compileExp(UnaryOperation const*);
 	LLValue* compileExp(BinaryOperation const*);
-	LLValue* compileExp(FunctionCall const*, LLType* type);
+	LLValue* compileExp(FunctionCall const*);
 	LLValue* compileExp(NewExpression const*);
 	LLValue* compileExp(MemberAccess const*);
 	LLValue* compileExp(IndexAccess const*);
@@ -139,13 +143,14 @@ private:
 private:
 	LLContext Context;
 	llvm::IRBuilder<> Builder;
-	std::unique_ptr<LLModule> Module;
-	std::string ContractName;
-	std::map<std::string, LLValue *> GlobalNamedValues;
-	std::map<std::string, LLValue *> LocalNamedValues;
-	std::map<std::string, LLStructType *> NamedStructTypes;
-	std::unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
-	std::stack<LoopInfo> LoopStack;
+	unique_ptr<LLModule> Module;
+	string ContractName;
+	map<string, LLValue *> GlobalNamedValues;
+	map<string, LLValue *> LocalNamedValues;
+	map<string, LLStructType *> MapStructTypes;
+	map<string, map<string, int> > MapEnumTypes;
+	unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
+	stack<LoopInfo> LoopStack;
 
 };
 

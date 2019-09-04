@@ -27,14 +27,14 @@ namespace solidity
 
 extern bool DebugLLVM;
 
-void LogError(const char *msg);
-void LogError(const char *msg, const char* content);
-void LogError(const char *msg, string content);
-void LogError(const char *msg, ASTNode const& node);
-void LogError(const char *msg, ASTNode const* node);
-void LogError(const char *msg, Type const* type);
-void LogWarning(const char *msg);
+void LogError(string msg);
+void LogError(string msg, string content);
+void LogError(string msg, ASTNode const& node);
+void LogError(string msg, ASTNode const* node);
+void LogError(string msg, Type const* type);
+void LogWarning(string msg);
 void LogDebug(string msg);
+void LogDebug(string msg, string content);
 void LogDebug(string msg, ASTNode const& node);
 void LogDebug(string msg, llvm::Value* value);
 void LogDebug(string msg, llvm::Type* type);

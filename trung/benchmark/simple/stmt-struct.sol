@@ -9,12 +9,10 @@ contract SimpleStruct {
     uint storedData = 5;
 
     Foo a = Foo({value: 1, data: 2}) ;
-    /* Foo b; */
+    Foo b;
 
     function set(uint x) public {
-
         x = x + 2;
-        /* bytes32 s = "A"; */
         /* s = "B"; */
     }
 

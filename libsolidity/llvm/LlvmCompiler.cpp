@@ -85,8 +85,12 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
 
 	// structs
-	for (const StructDefinition* st: contract->definedStructs())
-		compileStructDecl(st);
+	for (const StructDefinition* d: contract->definedStructs())
+		compileStructDefinition(d);
+
+	// enum
+	for (const EnumDefinition* d: contract->definedEnums())
+		compileEnumDefinition(d);
 
 	// perform optimization passes
 	FunctionPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(Module.get());
@@ -119,22 +123,39 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
  *                Compile Declarations
  ********************************************************/
 
-LLStructType* LlvmCompiler::compileStructDecl(const StructDefinition* st) {
-	string name = ContractName + "." + st->name();
+LLStructType* LlvmCompiler::compileStructDefinition(const StructDefinition* d) {
+	string structName = ContractName + "." + d->name();
 
 	vector<LLType*> elements;
-	for (auto var : st->members()) {
+	for (auto var : d->members()) {
 		LLType* elemType = compileType(var->type());
 		elements.push_back(elemType);
 	}
 
 	LLStructType* llvmStruct = LLStructType::create(Context, elements,
-																													name, true);
+																									structName, true);
 
-	NamedStructTypes[name] = llvmStruct;
+	MapStructTypes[structName] = llvmStruct;
 
 	return llvmStruct;
 }
+
+LLIntegerType* LlvmCompiler::compileEnumDefinition(const EnumDefinition* d) {
+	string enumName = ContractName + "." + d->name();
+
+	// map value members of an enum type to integers
+	map<string, int> memberValues;
+	int memberValue = 0;
+	for (auto m : d->members()) {
+		memberValues[m->name()] = memberValue;
+		memberValue++;
+	}
+	MapEnumTypes[enumName] = memberValues;
+
+	// compile an enum type to an integer type
+	return LLIntegerType::get(Context, 64);
+}
+
 
 LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	LLType* type = compileType(var->type());
@@ -142,17 +163,12 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 
 	LLConstant *initValue = nullptr;
 
-	if (Expression* v = var->value().get()) {
-		cout << "NOT NULL PTR" << endl;
-		initValue = llvm::dyn_cast<LLConstant>(compileExp(v, type));
-	}
-	else
-		cout << "NULL PTR" << endl;
+	if (Expression* v = var->value().get())
+		initValue = llvm::dyn_cast<LLConstant>(compileExp(v));
 
 	auto outputVar = new LLGlobalVar(*Module, type, false,
 																	 LLGlobalVar::CommonLinkage,
 																	 initValue, name);
-	// FIXME: need to initialize var here
 
 	GlobalNamedValues[name] = outputVar;
 
@@ -171,7 +187,7 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 }
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
-										 const Expression* value) {
+																					 const Expression* value) {
 	auto outputVar = compileLocalVarDecl(var);
 	auto llvmValue = compileExp(value);
 	return Builder.CreateStore(llvmValue, outputVar);
@@ -446,37 +462,38 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  *                Compile Expressions
  ********************************************************/
 
-LLValue* LlvmCompiler::compileExp(Expression const* exp, LLType* type) {
+LLValue* LlvmCompiler::compileExp(Expression const* exp) {
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<Assignment const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<Assignment const*>(exp)) {
+	  return compileExp(e);
 	}
-	if (auto e = dynamic_cast<TupleExpression const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<TupleExpression const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<UnaryOperation const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<UnaryOperation const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<BinaryOperation const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<BinaryOperation const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<FunctionCall const*>(exp)) {
-		if (e != nullptr) return compileExp(e, type);
+	else if (auto e = dynamic_cast<FunctionCall const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<NewExpression const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<NewExpression const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<MemberAccess const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<MemberAccess const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<IndexAccess const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<IndexAccess const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
+		return compileExp(e);
 	}
+
 	LogError("compileExp: unknown expression: ", *exp);
 	return nullptr;
 }
@@ -490,10 +507,12 @@ LLValue* LlvmCompiler::compileExp(Conditional const* exp) {
 LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 	LLValue* lhs = compileExp(&(exp->leftHandSide()));
 	LLValue* rhs = compileExp(&(exp->rightHandSide()));
+
 	if (lhs == nullptr)
 		LogError("compileExp: Assignment: null lhs");
 	if (rhs == nullptr)
 		LogError("compileExp: Assignment: null rhs");
+
 	return Builder.CreateStore(rhs, lhs);
 }
 
@@ -515,13 +534,13 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 		return Builder.CreateNot(subExp, "");
 
 	case Token::Inc: {
-		LLValue* one = llvm::ConstantInt::get(subExp->getType(), 1);
+		LLValue* one = LLConstantInt::get(subExp->getType(), 1);
 		auto newExp = Builder.CreateAdd(subExp, one, "");
 		return Builder.CreateStore(newExp, subExp);
 	}
 
 	case Token::Dec: {
-		LLValue* one = llvm::ConstantInt::get(subExp->getType(), 1);
+		LLValue* one = LLConstantInt::get(subExp->getType(), 1);
 		auto newExp = Builder.CreateSub(subExp, one, "");
 		return Builder.CreateStore(newExp, subExp);
 	}
@@ -539,6 +558,7 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	LLValue* lhs = compileExp(&(exp->leftExpression()));
 	LLValue* rhs = compileExp(&(exp->rightExpression()));
+
 	if (!lhs || !rhs) return nullptr;
 
 	switch (exp->getOperator()) {
@@ -616,12 +636,14 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 
 // Note: a FunctionCall in Solidity can be an ordinary function call,
 // a type casting, or a struct construction.
-LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, LLType* type) {
+LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	FunctionCallAnnotation &annon = exp->annotation();
+	TypePointer expType = annon.type;
+	LLType* type = compileType(expType);
 
 	if (annon.kind == FunctionCallKind::FunctionCall) {
 		string funcName = *(exp->names().at(0));
-		cout << "FuncCall: FuncName: " << funcName << endl;
+		LogDebug("FuncName", funcName);
 		LLFunction *callee = Module->getFunction(funcName);
 
 		vector<LLValue*> arguments;
@@ -635,6 +657,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, LLType* type) {
 
 		return Builder.CreateCall(callee, arguments, "functioncall");
 	}
+
 	else if (annon.kind == FunctionCallKind::StructConstructorCall) {
 		vector<LLConstant*> arguments;
 		for (auto arg : exp->arguments())
@@ -648,9 +671,30 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp, LLType* type) {
 			return nullptr;
 		}
 	}
+
 	else if (annon.kind == FunctionCallKind::TypeConversion) {
+
+		LogDebug("Type Conversion to", type);
+
+		if (exp->arguments().size() > 1)
+			LogError("TypeConversion: expect 1 argument");
+
+		LLValue* arg = compileExp((&(exp->arguments().at(0)))->get());
+
+		if (auto t = dynamic_cast<IntegerType const*>(expType)) {
+			if (t->isSigned())
+				return Builder.CreateSExtOrTrunc(arg, type);
+			else
+				return Builder.CreateZExtOrTrunc(arg, type);
+		}
+		else if (auto t = dynamic_cast<EnumType const*>(expType)) {
+			return Builder.CreateZExtOrTrunc(arg, type);
+		}
+
+
 		return nullptr;
 	}
+
 	else {
 		LogError("compileExp: FunctionCall: unknown FunctionCall type");
 		return nullptr;
@@ -663,10 +707,21 @@ LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
-	//    string strBase = compileExp(&(exp->expression()));
-	//    string strMember = exp->memberName();
-	//    return strBase + "." + strMember;
-	LLValue* llvmBase = compileExp(&(exp->expression()));
+	Expression const& baseExp = exp->expression();
+	TypePointer baseType = baseExp.annotation().type;
+	TypePointer coreType = exp->annotation().type;
+
+	LLValue* outputBaseExp = compileExp(&baseExp);
+
+	if (auto type = dynamic_cast<EnumType const*>(coreType)) {
+		string enumName = type->canonicalName();
+		map<string, int> memberValues = MapEnumTypes[enumName];
+		int value = memberValues[exp->memberName()];
+		LLIntegerType* intType = LLIntegerType::get(Context, 64);
+		return LLConstantInt::get(intType, value);
+	}
+
+	LogError("compileExp: MemberAccess: unknown exp");
 
 	// TODO
 	return nullptr;
@@ -711,15 +766,15 @@ LLValue* LlvmCompiler::compileExp(Literal const *exp) {
 		return llvm::ConstantDataArray::getString(Context, content);
 
 	case Token::TrueLiteral:
-		return llvm::ConstantInt::getTrue(Context);
+		return LLConstantInt::getTrue(Context);
 
 	case Token::FalseLiteral:
-		return llvm::ConstantInt::getFalse(Context);
+		return LLConstantInt::getFalse(Context);
 
 	case Token::Number: {
 		// FIXME: temporarily fix to 64 bit, signed integer
-		llvm::IntegerType* intType = llvm::IntegerType::get(Context, 64);
-		return llvm::ConstantInt::get(intType, atoi(content.data()), true);
+		LLIntegerType* intType = LLIntegerType::get(Context, 64);
+		return LLConstantInt::get(intType, atoi(content.data()), true);
 	}
 
 	case Token::CommentLiteral:
@@ -776,7 +831,7 @@ LLType* LlvmCompiler::compileTypeName(FunctionTypeName const* type) {
 
 LLType* LlvmCompiler::compileTypeName(Mapping const* type) {
 	// TODO
-	LogError("compileTypeName: Mapping: unhandled");
+	LogError("compileTypeName: Mapping: unhanded");
 	return nullptr;
 }
 
@@ -789,96 +844,74 @@ LLType* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 LLType* LlvmCompiler::compileType(TypePointer type) {
 	if (type == nullptr)
 		LogError("compileType: input is null type");
-
-	if (auto t = dynamic_cast<IntegerType const*>(type)) {
-		if (t != nullptr) {
-			return llvm::IntegerType::get(Context, t->numBits());
-		}
+	else if (auto t = dynamic_cast<IntegerType const*>(type)) {
+		return LLIntegerType::get(Context, t->numBits());
 	}
 	else if (auto t = dynamic_cast<FixedPointType const*>(type)) {
-		if (t != nullptr)
-			LogError("FixedPointType");
+		LogError("FixedPointType");
 	}
 	else if (auto t = dynamic_cast<RationalNumberType const*>(type)) {
-		if (t != nullptr)
-			LogError("RationalNumberType");
+		LogError("RationalNumberType");
 	}
 	else if (auto t = dynamic_cast<StringLiteralType const*>(type)) {
-		if (t != nullptr)
-			LogError("StringLiteralType");
-	}
-	else if (dynamic_cast<FixedBytesType const*>(type)) {
-		if (t != nullptr)
-			LogError("FixedBytesType");
+		LogError("StringLiteralType");
 	}
 	else if (auto t =  dynamic_cast<BoolType const*>(type)) {
-		if (t != nullptr)
-			return llvm::IntegerType::get(Context, 8);
+		return LLIntegerType::get(Context, 8);
 	}
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
-		if (t != nullptr) {
-			string name = t->canonicalName();
-			LLStructType* outputType = NamedStructTypes[name];
-
-			if (outputType == nullptr)
-				LogError("Compiling Struct Type: unknown struct of name: ", name);
-
-			return outputType;
-		}
+		string name = t->canonicalName();
+		LLStructType* outputType = MapStructTypes[name];
+		return outputType;
+	}
+	else if (auto t = dynamic_cast<FixedBytesType const*>(type)) {
+		uint64_t size = t->numBytes();
+		auto baseType = LLIntegerType::get(Context, 8);
+		return LLArrayType::get(baseType, size);
 	}
 	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
-		if (t != nullptr)
-			LogError("ArrayType");
+		uint64_t size = (uint64_t)t->length();  // converting u256 to uint64
+		auto baseType = compileType(t->baseType());
+		return LLArrayType::get(baseType, size);
 	}
 	else if (auto t = dynamic_cast<ContractType const*>(type)) {
-		if (t != nullptr)
-			LogError("ContractType");
+		LogError("ContractType");
 	}
 	else if (auto t = dynamic_cast<EnumType const*>(type)) {
-		if (t != nullptr)
-			LogError("EnumType");
+		// compile an enum type to an integer type
+		return LLIntegerType::get(Context, 64);
 	}
 	else if (auto t = dynamic_cast<TupleType const*>(type)) {
-		if (t != nullptr)
-			LogError("TupleType");
+		LogError("TupleType");
 	}
 	else if (auto t = dynamic_cast<FunctionType const*>(type)) {
-		if (t != nullptr)
-			LogError("FunctionType");
+		LogError("FunctionType");
 	}
 	else if (auto t = dynamic_cast<MappingType const*>(type)) {
-		if (t != nullptr)
-			LogError("MappingType");
+		LogError("MappingType");
 	}
 	else if (auto t = dynamic_cast<TypeType const*>(type)) {
-		if (t != nullptr)
-			LogError("TypeType");
+		LogError("TypeType");
 	}
 	else if (auto t = dynamic_cast<ModifierType const*>(type)) {
-		if (t != nullptr)
-			LogError("ModifierType");
+		LogError("ModifierType");
 	}
 	else if (auto t = dynamic_cast<ModuleType const*>(type)) {
-		if (t != nullptr)
-			LogError("ModuleType");
+		LogError("ModuleType");
 	}
 	else if (auto t = dynamic_cast<MagicType const*>(type)) {
-		if (t != nullptr)
-			LogError("MagicType");
+		LogError("MagicType");
 	}
 	else if (auto t = dynamic_cast<InaccessibleDynamicType const*>(type)) {
-		if (t != nullptr)
-			LogError("InaccessibleDynamicType");
+		LogError("InaccessibleDynamicType");
 	}
 	else if (auto t = dynamic_cast<AddressType const*>(type)) {
-		if (t != nullptr) {
-			// Soldity's address is 20 bytes
-			auto byteType = llvm::IntegerType::get(Context, 8);
-			return llvm::ArrayType::get(byteType, 20);
-		}
+		// Soldity's address is 20 bytes
+		auto byteType = LLIntegerType::get(Context, 8);
+		return LLArrayType::get(byteType, 20);
 	}
 
-	LogError("compileType: Unknown Type: ", type);
+	LogError("compileType: Unknown Type", type);
 
 	return nullptr;
 }

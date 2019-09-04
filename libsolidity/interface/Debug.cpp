@@ -64,7 +64,7 @@ void dev::solidity::LogDebug(string msg, string content) {
 
 void dev::solidity::LogDebug(string msg, ASTNode const& node) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg << ": ";
 		ASTPrinter printer(node);
 		printer.print(cerr);
 		cerr << endl;
@@ -73,7 +73,7 @@ void dev::solidity::LogDebug(string msg, ASTNode const& node) {
 
 void dev::solidity::LogDebug(string msg, llvm::Value* value) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg << ": ";
 		value->print(llvm::outs());
 		llvm::outs() << "\n";
 	}
@@ -81,7 +81,7 @@ void dev::solidity::LogDebug(string msg, llvm::Value* value) {
 
 void dev::solidity::LogDebug(string msg, llvm::Type* type) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg;
+		llvm::outs() << "!! Debug: " << msg << ": ";
 		type->print(llvm::outs());
 		llvm::outs() << "\n";
 	}

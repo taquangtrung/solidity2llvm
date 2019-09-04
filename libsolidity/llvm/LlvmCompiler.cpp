@@ -212,17 +212,22 @@ LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 		// TODO: handle returned type tuple
 		LogError("CompileFunc: unknown returned function type");
 	}
+
+	// parameters
+	// FIXME: need to create local vars to store these parameters like Clang?
 	vector<LLType*> llvmParamTypes;
 	auto params = func->parameters();
-	for (auto p: params)
+	for (auto p: params) {
 		llvmParamTypes.push_back(compileType(p->type()));
+	}
+
 	LLFunctionType* llvmFuncType =
 		LLFunctionType::get(llvmRetType, llvmParamTypes, false);
 
 	// create function
-	LLFunction *llvmFunc =
-		LLFunction::Create(llvmFuncType, LLFunction::CommonLinkage,
-							   funcName, Module.get());
+	LLFunction *llvmFunc = LLFunction::Create(llvmFuncType,
+																						LLFunction::CommonLinkage,
+																						funcName, Module.get());
 
 	// set names for parameters and also record it to local names
 	int index = 0;
@@ -681,6 +686,10 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 		LLValue* arg = compileExp((&(exp->arguments().at(0)))->get());
 
+		LLType* argType = arg->getType();
+		LogDebug("Argument", arg);
+		LogDebug("Type Argument", argType);
+
 		if (auto t = dynamic_cast<IntegerType const*>(expType)) {
 			if (t->isSigned())
 				return Builder.CreateSExtOrTrunc(arg, type);
@@ -688,6 +697,8 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 				return Builder.CreateZExtOrTrunc(arg, type);
 		}
 		else if (auto t = dynamic_cast<EnumType const*>(expType)) {
+			// LLValue* argContent = Builder.CreateLoad(arg);
+			// return Builder.CreateZExtOrTrunc(argContent, type);
 			return Builder.CreateZExtOrTrunc(arg, type);
 		}
 
@@ -747,6 +758,8 @@ LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Identifier const *exp) {
+	// LLValue* llexp = findNamedValue(exp->name());
+	// return Builder.CreateLoad(llexp);
 	return findNamedValue(exp->name());
 }
 

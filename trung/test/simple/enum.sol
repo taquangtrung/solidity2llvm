@@ -18,6 +18,11 @@ contract SimpleEnum {
     someData = SomeData(x);
   }
 
+  function setValues2(uint _value) public {
+    /* require(uint(SomeData.TWO) >= _value); */
+    someData = SomeData(_value);
+  }
+
   /* function getValue() public returns (uint) { */
   /*   return uint(someData); */
   /* } */

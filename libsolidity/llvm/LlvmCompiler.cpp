@@ -74,7 +74,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract,
 
 void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// prepare environment
-	GlobalNamedValues.clear();
+	MapGlobalVars.clear();
 
 	// // enum
 	// // for (const EnumDefinition* en: contract->definedStructs())
@@ -170,7 +170,7 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 																	 LLGlobalVar::CommonLinkage,
 																	 initValue, name);
 
-	GlobalNamedValues[name] = outputVar;
+	MapGlobalVars[name] = outputVar;
 
 	return outputVar;
 }
@@ -180,8 +180,9 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 	LLType* type = compileType(var.type());
 	string name = var.name();
 
-	auto outputVar = Builder.CreateAlloca(type, nullptr, name);
-	LocalNamedValues[name] = outputVar;
+	LLValue* outputVar = Builder.CreateAlloca(type, nullptr, name);
+	MapLocalVars[name] = outputVar;
+	SetLocalVars.insert(outputVar);
 
 	return outputVar;
 }
@@ -195,7 +196,7 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 
 LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 	// prepare environment
-	LocalNamedValues.clear();
+	MapLocalVars.clear();
 
 	// function name
 	string funcName = func->name();
@@ -234,7 +235,7 @@ LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 	for (auto &arg : llvmFunc->args()) {
 		string paramName = params.at(index)->name();
 		arg.setName(paramName);
-		LocalNamedValues[paramName] = &arg;
+		MapLocalVars[paramName] = &arg;
 		index++;
 	}
 
@@ -697,9 +698,12 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 				return Builder.CreateZExtOrTrunc(arg, type);
 		}
 		else if (auto t = dynamic_cast<EnumType const*>(expType)) {
-			// LLValue* argContent = Builder.CreateLoad(arg);
-			// return Builder.CreateZExtOrTrunc(argContent, type);
-			return Builder.CreateZExtOrTrunc(arg, type);
+			if (SetLocalVars.find(arg) != SetLocalVars.end()) {
+				LLValue* loadedArg = Builder.CreateLoad(arg);
+				return Builder.CreateZExtOrTrunc(loadedArg, type);
+			}
+			else
+				return Builder.CreateZExtOrTrunc(arg, type);
 		}
 
 
@@ -998,9 +1002,9 @@ string LlvmCompiler::stringOf(LLType* type) {
 }
 
 LLValue* LlvmCompiler::findNamedValue(string name) {
-	if (LocalNamedValues.find(name) != LocalNamedValues.end())
-		return LocalNamedValues[name];
-	else if (GlobalNamedValues.find(name) != GlobalNamedValues.end())
-		return GlobalNamedValues[name];
+	if (MapLocalVars.find(name) != MapLocalVars.end())
+		return MapLocalVars[name];
+	else if (MapGlobalVars.find(name) != MapGlobalVars.end())
+		return MapGlobalVars[name];
 	else return nullptr;
 }

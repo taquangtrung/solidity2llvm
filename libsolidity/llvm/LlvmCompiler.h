@@ -145,8 +145,9 @@ private:
 	llvm::IRBuilder<> Builder;
 	unique_ptr<LLModule> Module;
 	string ContractName;
-	map<string, LLValue *> GlobalNamedValues;
-	map<string, LLValue *> LocalNamedValues;
+	map<string, LLValue *> MapGlobalVars;
+	map<string, LLValue *> MapLocalVars;
+	set<LLValue *> SetLocalVars;
 	map<string, LLStructType *> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
 	unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;

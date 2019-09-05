@@ -171,6 +171,7 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 																	 initValue, name);
 
 	MapGlobalVars[name] = outputVar;
+	SetGlobalVars.insert(outputVar);
 
 	return outputVar;
 }
@@ -685,25 +686,18 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 		if (exp->arguments().size() > 1)
 			LogError("TypeConversion: expect 1 argument");
 
-		LLValue* arg = compileExp((&(exp->arguments().at(0)))->get());
-
-		LLType* argType = arg->getType();
-		LogDebug("Argument", arg);
-		LogDebug("Type Argument", argType);
+		LLValue* arg = compileExpArgument((&(exp->arguments().at(0)))->get());
 
 		if (auto t = dynamic_cast<IntegerType const*>(expType)) {
 			if (t->isSigned())
 				return Builder.CreateSExtOrTrunc(arg, type);
-			else
+			else {
+				LogDebug("LoadedArg: ", arg);
 				return Builder.CreateZExtOrTrunc(arg, type);
+			}
 		}
 		else if (auto t = dynamic_cast<EnumType const*>(expType)) {
-			if (SetLocalVars.find(arg) != SetLocalVars.end()) {
-				LLValue* loadedArg = Builder.CreateLoad(arg);
-				return Builder.CreateZExtOrTrunc(loadedArg, type);
-			}
-			else
-				return Builder.CreateZExtOrTrunc(arg, type);
+			return Builder.CreateZExtOrTrunc(arg, type);
 		}
 
 
@@ -802,6 +796,25 @@ LLValue* LlvmCompiler::compileExp(Literal const *exp) {
 		LogError("compileExp: Literal: unknown token: ", *exp);
 		return nullptr;
 	}
+}
+
+/********************************************************
+ *                Auxiliary LLVM functions
+ ********************************************************/
+
+LLValue* LlvmCompiler::compileExpArgument(Expression const* exp) {
+	LLValue* arg = compileExp(exp);
+
+	// lookup local vars first
+	if (SetLocalVars.find(arg) != SetLocalVars.end())
+		return Builder.CreateLoad(arg);
+
+	// then global vars
+	if (SetGlobalVars.find(arg) != SetGlobalVars.end())
+		return Builder.CreateLoad(arg);
+
+	// otherwise, the current value is intermediate
+	return arg;
 }
 
 /********************************************************

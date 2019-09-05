@@ -23,7 +23,7 @@ contract SimpleEnum {
     someData = SomeData(_value);
   }
 
-  /* function getValue() public returns (uint) { */
-  /*   return uint(someData); */
-  /* } */
+  function getValue() public returns (uint) {
+    return uint(someData);
+  }
 }

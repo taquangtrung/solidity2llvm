@@ -116,6 +116,9 @@ class LlvmCompiler {
 	LLValue* compileExp(ElementaryTypeNameExpression const*);
 	LLValue* compileExp(Literal const*);
 
+	// auxiliary LLVM functions
+	LLValue* compileExpArgument(Expression const*);
+
 	// compile types
 	LLType* compileTypeName(TypeName const*);
 	LLType* compileTypeName(ElementaryTypeName const*);
@@ -147,6 +150,7 @@ private:
 	string ContractName;
 	map<string, LLValue *> MapGlobalVars;
 	map<string, LLValue *> MapLocalVars;
+	set<LLValue *> SetGlobalVars;
 	set<LLValue *> SetLocalVars;
 	map<string, LLStructType *> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;

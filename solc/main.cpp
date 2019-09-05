@@ -22,6 +22,7 @@
 
 #include <solc/CommandLineInterface.h>
 #include <boost/exception/all.hpp>
+#include <boost/stacktrace.hpp>
 #include <clocale>
 #include <iostream>
 
@@ -56,23 +57,8 @@ static void setDefaultOrCLocale()
 #endif
 }
 
-void handler(int sig) {
-	void *array[10];
-	size_t size;
-
-	// get void*'s for all entries on the stack
-	size = backtrace(array, 20);
-
-	// print out all the frames to stderr
-	fprintf(stderr, "Error: signal %d:\n", sig);
-	backtrace_symbols_fd(array, size, STDERR_FILENO);
-	exit(1);
-}
-
-
 int main(int argc, char** argv)
 {
-	signal(SIGSEGV, handler);   // install our handler
 	setDefaultOrCLocale();
 	dev::solidity::CommandLineInterface cli;
 	if (!cli.parseArguments(argc, argv))
@@ -86,7 +72,8 @@ int main(int argc, char** argv)
 	}
 	catch (boost::exception const& _exception)
 	{
-		cerr << "Exception during output generation: " << boost::diagnostic_information(_exception) << endl;
+		cerr << "Exception during output generation: "
+				 << boost::diagnostic_information(_exception) << endl;
 		success = false;
 	}
 

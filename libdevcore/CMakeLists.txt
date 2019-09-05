@@ -7,6 +7,8 @@ set(sources
 	CommonData.h
 	CommonIO.cpp
 	CommonIO.h
+	Debug.cpp
+	Debug.h
 	Exceptions.cpp
 	Exceptions.h
 	FixedHash.h
@@ -31,7 +33,7 @@ set(sources
 	Visitor.h
 	Whiskers.cpp
 	Whiskers.h
-)
+	)
 
 add_library(devcore ${sources})
 target_link_libraries(devcore PUBLIC jsoncpp Boost::boost Boost::filesystem Boost::regex Boost::system Threads::Threads)

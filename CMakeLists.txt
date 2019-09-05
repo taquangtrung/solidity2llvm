@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.5.0)
 
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
-SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-rdynamic")
-
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-rdynamic")
 
 set(ETH_CMAKE_DIR   "${CMAKE_CURRENT_LIST_DIR}/cmake"   CACHE PATH "The the path to the cmake directory")
 list(APPEND CMAKE_MODULE_PATH ${ETH_CMAKE_DIR})
@@ -65,6 +64,7 @@ configure_file("${CMAKE_SOURCE_DIR}/cmake/templates/license.h.in" include/licens
 include(EthOptions)
 configure_project(TESTS)
 
+add_subdirectory(backward-cpp)
 add_subdirectory(libdevcore)
 add_subdirectory(liblangutil)
 add_subdirectory(libevmasm)

@@ -14,10 +14,11 @@ contract SimpleEnum {
 
   function setValues(uint _value) public {
     /* require(uint(SomeData.TWO) >= _value); */
-    someData = SomeData(_value);
+    uint x = _value;
+    someData = SomeData(x);
   }
 
-  function getValue() public returns (uint) {
-    return uint(someData);
-  }
+  /* function getValue() public returns (uint) { */
+  /*   return uint(someData); */
+  /* } */
 }

@@ -22,7 +22,7 @@
 #pragma once
 
 #include <libsolidity/interface/CompilerStack.h>
-#include <libsolidity/interface/Debug.h>
+#include <libdevcore/Debug.h>
 #include <libyul/AssemblyStack.h>
 #include <liblangutil/EVMVersion.h>
 

@@ -7,7 +7,7 @@
  * Versioning.
  */
 
-#include <libsolidity/interface/Debug.h>
+#include <libdevcore/Debug.h>
 
 using namespace dev;
 using namespace dev::solidity;

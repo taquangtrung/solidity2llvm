@@ -4,13 +4,11 @@ enum week{Mon, Tue, Wed, Thur, Fri, Sat, Sun};
 
 enum week foo;
 
-int bar(enum week z)
+int bar(int z)
 {
-    enum week day;
-    day = z;
-    foo = Fri;
-    printf("%d",day);
-    return 0;
+  int x = z;
+  foo = x;
+  return foo;
 }
 
 int main() {

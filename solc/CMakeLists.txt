@@ -4,7 +4,9 @@ set(
 	main.cpp
 )
 
-add_executable(solc ${sources})
+add_executable(solc ${sources} ${BACKWARD_ENABLE})
+add_backward(solc)
+
 target_link_libraries(solc PRIVATE solidity Boost::boost Boost::program_options)
 
 include(GNUInstallDirs)
@@ -25,4 +27,4 @@ endif()
 # LLVM
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
-target_link_libraries(solc PUBLIC ${LLVM_LIBS})
+target_link_libraries(solc PUBLIC ${LLVM_LIBS} ${CMAKE_DL_LIBS})

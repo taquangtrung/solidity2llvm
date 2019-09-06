@@ -636,6 +636,7 @@ LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 
 LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 	TypePointer memType = exp->annotation().type;
+	LLType* llMemType = compileType(memType);
 
 	Expression const& baseExp = exp->expression();
 	TypePointer baseType = baseExp.annotation().type;
@@ -658,14 +659,22 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 		StructDefinition const& structDef = structType->structDefinition();
 
 		string memberName = exp->memberName();
-		int index = 0;
+		int memIndex = 0;
 		for (auto var: structDef.members()) {
-			if (var->name() == memberName)
+			if (var->name() == memberName) {
+				llMemType = compileType(var->type());
 				break;
-			index++;
+			}
+			memIndex++;
 		}
 
-		return Builder.CreateConstInBoundsGEP1_32(llBaseType, llBaseExp, index);
+		vector<LLValue *> IdxList;
+		IdxList.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+		IdxList.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), memIndex));
+
+		LogDebug("LL Mem Type: ", llMemType);
+
+		return Builder.CreateGEP(llBaseExp, IdxList);
 	}
 
 	LogError("compileExp: MemberAccess: unknown exp: ", *exp);

@@ -22,13 +22,10 @@
 
 #include <solc/CommandLineInterface.h>
 #include <boost/exception/all.hpp>
-#include <boost/stacktrace.hpp>
 #include <clocale>
 #include <iostream>
 
 #include <stdio.h>
-#include <execinfo.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 

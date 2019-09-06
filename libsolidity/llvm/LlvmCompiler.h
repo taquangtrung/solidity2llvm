@@ -80,7 +80,6 @@ class LlvmCompiler {
 	LLStructType* compileStructDecl(const StructDefinition*);
 	LLIntegerType* compileEnumDecl(const EnumDefinition*);
 	LLValue* compileGlobalVarDecl(const VariableDeclaration*);
-	LLValue* compileLocalVarDecl(VariableDeclaration&);
 	LLValue* compileLocalVarDecl(VariableDeclaration&, const Expression*);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
 

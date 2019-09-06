@@ -95,18 +95,17 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
  ********************************************************/
 
 LLStructType* LlvmCompiler::compileStructDecl(const StructDefinition* d) {
-	string llStructName = ContractName + "." + d->name();
+	string name = ContractName + "." + d->name();
 
 	// fields of structs
-	vector<LLType*> llElements;
+	vector<LLType*> llElems;
 	for (auto var : d->members())
-		llElements.push_back(compileType(var->type()));
+		llElems.push_back(compileType(var->type()));
 
-	LLStructType* llStructType = LLStructType::create(Context, llElements,
-																										llStructName, true);
-	MapStructTypes[llStructName] = llStructType;
+	LLStructType* llType = LLStructType::create(Context, llElems, name, true);
+	MapStructTypes[name] = llType;
 
-	return llStructType;
+	return llType;
 }
 
 LLIntegerType* LlvmCompiler::compileEnumDecl(const EnumDefinition* d) {
@@ -145,8 +144,8 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 	return llVar;
 }
 
-LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
-
+LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
+																					 const Expression* value) {
 	LLType* llType = compileType(var.type());
 	string name = var.name();
 
@@ -154,13 +153,10 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 	MapLocalVars[name] = llVar;
 	SetLocalVars.insert(llVar);
 
-	return llVar;
-}
+	if (value == nullptr)
+		return llVar;
 
-LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
-																					 const Expression* value) {
-	auto llVar = compileLocalVarDecl(var);
-	auto llValue = compileExp(value);
+	LLValue* llValue = compileExp(value);
 	return Builder.CreateStore(llValue, llVar);
 }
 
@@ -639,17 +635,34 @@ LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
-	TypePointer coreType = exp->annotation().type;
+	Expression const& baseExp = exp->expression();
+	TypePointer baseType = baseExp.annotation().type;
+	TypePointer memType = exp->annotation().type;
 
-	if (auto type = dynamic_cast<EnumType const*>(coreType)) {
-		string llEnumName = type->canonicalName();
-		map<string, int> llMemberValues = MapEnumTypes[llEnumName];
-		int value = llMemberValues[exp->memberName()];
-		LLIntegerType* llIntType = LLIntegerType::get(Context, 64);
-		return LLConstantInt::get(llIntType, value);
+	if (dynamic_cast<TypeType const*>(baseType)) {
+		if (dynamic_cast<EnumType const*>(memType)) {
+			string llEnumName = memType->canonicalName();
+			map<string, int> llMemberValues = MapEnumTypes[llEnumName];
+			int value = llMemberValues[exp->memberName()];
+			LLIntegerType* llIntType = LLIntegerType::get(Context, 64);
+			return LLConstantInt::get(llIntType, value);
+		}
+	}
+	else if (dynamic_cast<StructType const*>(baseType)) {
+		string llStructName = baseType->canonicalName();
+		LLStructType* llStructType = MapStructTypes[llStructName];
+		string memberName = exp->memberName();
+		int index = 0;
+		llStructType->elements();
+		// exp->expression();		// Builder.CreateGEP
+
+		// map<string, int> llMemberValues = MapEnumTypes[llEnumName];
+		// int value = llMemberValues[exp->memberName()];
+		// LLIntegerType* llIntType = LLIntegerType::get(Context, 64);
+		// return LLConstantInt::get(llIntType, value);
 	}
 
-	LogError("compileExp: MemberAccess: unknown exp");
+	LogError("compileExp: MemberAccess: unknown exp: ", *exp);
 
 	// TODO
 	return nullptr;
@@ -662,7 +675,7 @@ LLValue* LlvmCompiler::compileExp(IndexAccess const* exp) {
 
 LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 	if (auto e = dynamic_cast<Identifier const*>(exp)) {
-		compileExp(e);
+		return compileExp(e);
 	}
 	else if (auto e = dynamic_cast<ElementaryTypeNameExpression const*>(exp)) {
 		return compileExp(e);
@@ -671,7 +684,7 @@ LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 		return compileExp(e);
 	}
 
-	LogError("compileExp: PrimaryExpression: unknown expression");
+	LogError("compileExp: PrimaryExpression: unknown expression", *exp);
 	return nullptr;
 }
 
@@ -793,67 +806,86 @@ LLType* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 LLType* LlvmCompiler::compileType(TypePointer type) {
 	if (type == nullptr)
 		LogError("compileType: input is null type");
+
 	else if (auto t = dynamic_cast<IntegerType const*>(type)) {
 		return LLIntegerType::get(Context, t->numBits());
 	}
+
 	else if (auto t = dynamic_cast<FixedPointType const*>(type)) {
 		LogError("FixedPointType");
 	}
+
 	else if (auto t = dynamic_cast<RationalNumberType const*>(type)) {
 		LogError("RationalNumberType");
+
 	}
 	else if (auto t = dynamic_cast<StringLiteralType const*>(type)) {
 		LogError("StringLiteralType");
 	}
+
 	else if (auto t =  dynamic_cast<BoolType const*>(type)) {
 		return LLIntegerType::get(Context, 8);
 	}
+
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
 		return MapStructTypes[t->canonicalName()];
 	}
+
 	else if (auto t = dynamic_cast<FixedBytesType const*>(type)) {
 		uint64_t size = t->numBytes();
 		LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
 		return LLArrayType::get(llBaseType, size);
 	}
+
 	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
 		uint64_t size = (uint64_t)t->length();  // converting u256 to uint64
 		LLType* llBaseType = compileType(t->baseType());
 		return LLArrayType::get(llBaseType, size);
 	}
+
 	else if (auto t = dynamic_cast<ContractType const*>(type)) {
 		LogError("ContractType");
 	}
+
 	else if (auto t = dynamic_cast<EnumType const*>(type)) {
 		// compile an enum type to an integer type
 		return LLIntegerType::get(Context, 64);
 	}
+
 	else if (auto t = dynamic_cast<TupleType const*>(type)) {
 		vector<TypePointer> components = t->components();
 		cout << "TupleType: num of components: " << components.size();
 		LogError("TupleType");
 	}
+
 	else if (auto t = dynamic_cast<FunctionType const*>(type)) {
 		LogError("FunctionType");
 	}
+
 	else if (auto t = dynamic_cast<MappingType const*>(type)) {
 		LogError("MappingType");
 	}
+
 	else if (auto t = dynamic_cast<TypeType const*>(type)) {
 		LogError("TypeType");
 	}
+
 	else if (auto t = dynamic_cast<ModifierType const*>(type)) {
 		LogError("ModifierType");
 	}
+
 	else if (auto t = dynamic_cast<ModuleType const*>(type)) {
 		LogError("ModuleType");
 	}
+
 	else if (auto t = dynamic_cast<MagicType const*>(type)) {
 		LogError("MagicType");
 	}
+
 	else if (auto t = dynamic_cast<InaccessibleDynamicType const*>(type)) {
 		LogError("InaccessibleDynamicType");
 	}
+
 	else if (auto t = dynamic_cast<AddressType const*>(type)) {
 		// Soldity's address is 20 bytes
 		auto byteType = LLIntegerType::get(Context, 8);

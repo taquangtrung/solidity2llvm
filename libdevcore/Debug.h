@@ -36,6 +36,8 @@ void LogWarning(string msg);
 void LogDebug(string msg);
 void LogDebug(string msg, string content);
 void LogDebug(string msg, ASTNode const& node);
+void LogDebug(string msg, ASTNode const* node);
+void LogDebug(string msg, Type const* type);
 void LogDebug(string msg, llvm::Value* value);
 void LogDebug(string msg, llvm::Type* type);
 

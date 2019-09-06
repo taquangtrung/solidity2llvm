@@ -17,12 +17,12 @@ bool dev::solidity::DebugLLVM = false;
 
 
 void dev::solidity::LogError(string msg) {
-	cerr<< "\n!!!Error: " << msg << endl;
+	cerr<< "\n!!! Error: " << msg << endl;
 	exit (1);
 }
 
 void dev::solidity::LogError(string msg, string content) {
-	cerr<< "\n!!!Error: " << msg << ": " << content << endl;
+	cerr<< "\n!!! Error: " << msg << ": " << content << endl;
 	exit (1);
 }
 
@@ -54,26 +54,42 @@ void dev::solidity::LogWarning(string msg) {
 
 void dev::solidity::LogDebug(string msg) {
 	if (DebugLLVM)
-		cout << "!! Debug: " << msg << endl;
+		cout << "!! " << msg << endl;
 }
 
 void dev::solidity::LogDebug(string msg, string content) {
 	if (DebugLLVM)
-		cout << "!! Debug: " << msg << ": " << content << endl;
+		cout << "!! " << msg << ": " << content << endl;
 }
 
 void dev::solidity::LogDebug(string msg, ASTNode const& node) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg << ": ";
+		llvm::outs() << "!! " << msg << ": ";
 		ASTPrinter printer(node);
-		printer.print(cerr);
-		cerr << endl;
+		printer.print(cout);
+		cout << endl;
+	}
+}
+
+void dev::solidity::LogDebug(string msg, ASTNode const* node) {
+	if (DebugLLVM) {
+		llvm::outs() << "!! " << msg << ": ";
+		ASTPrinter printer(*node);
+		printer.print(cout);
+		cout << endl;
+	}
+}
+
+void dev::solidity::LogDebug(string msg, Type const* type) {
+	if (DebugLLVM) {
+		cout << "\n!! " << msg << ": " << type->toString();
+		cout << endl;
 	}
 }
 
 void dev::solidity::LogDebug(string msg, llvm::Value* value) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg << ": ";
+		llvm::outs() << "!! " << msg << ": ";
 		value->print(llvm::outs());
 		llvm::outs() << "\n";
 	}
@@ -81,7 +97,7 @@ void dev::solidity::LogDebug(string msg, llvm::Value* value) {
 
 void dev::solidity::LogDebug(string msg, llvm::Type* type) {
 	if (DebugLLVM) {
-		llvm::outs() << "!! Debug: " << msg << ": ";
+		llvm::outs() << "!! " << msg << ": ";
 		type->print(llvm::outs());
 		llvm::outs() << "\n";
 	}

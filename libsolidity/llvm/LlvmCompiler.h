@@ -77,12 +77,12 @@ class LlvmCompiler {
 	void compileContract(const ContractDefinition* contract);
 
 	// compile declarations
-	LLStructType* compileStructDefinition(const StructDefinition*);
-	LLIntegerType* compileEnumDefinition(const EnumDefinition*);
+	LLStructType* compileStructDecl(const StructDefinition*);
+	LLIntegerType* compileEnumDecl(const EnumDefinition*);
 	LLValue* compileGlobalVarDecl(const VariableDeclaration*);
 	LLValue* compileLocalVarDecl(VariableDeclaration&);
 	LLValue* compileLocalVarDecl(VariableDeclaration&, const Expression*);
-	LLFunction* compileFunction(FunctionDefinition const*);
+	LLFunction* compileFuncDecl(FunctionDefinition const*);
 
 	// compile statements
 	void compileStmt(Statement const& stmt);

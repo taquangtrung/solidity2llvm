@@ -20,14 +20,10 @@ using namespace dev;
 using namespace dev::solidity;
 
 
-/*
-  _sourceCodes: maps name of a contract to its source code
-*/
 string LlvmCompiler::llvmString(const ContractDefinition* contract,
 																StringMap sourceCodes) {
 	// llvm::IRBuilder<> Builder1(Context);
 	LoopStack.empty();
-
 
 	cout << endl << "==========================" << endl ;
 	cout << "** Compiling Solidity to LLVM IR ..." << endl;
@@ -51,23 +47,6 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract,
 
 }
 
-// string LlvmCompiler::compileExp(NewExpression const* exp) {
-//    // return "new " + compileTypeName(exp->typeName());
-//    return "new";
-// }
-
-// string LlvmCompiler::compileExp(MemberAccess const* exp) {
-//    string strBase = compileExp(&(exp->expression()));
-//    string strMember = exp->memberName();
-//    return strBase + "." + strMember;
-// }
-
-// string LlvmCompiler::compileExp(IndexAccess const* exp) {
-//    string strBase = compileExp(&(exp->baseExpression()));
-//    string strIndex = compileExp(exp->indexExpression());
-//    return strBase + "[" + strIndex + "]";
-// }
-
 /********************************************************
  *               Compile Contract
  ********************************************************/
@@ -76,21 +55,15 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	// prepare environment
 	MapGlobalVars.clear();
 
-	// // enum
-	// // for (const EnumDefinition* en: contract->definedStructs())
-	// //   result = result + "\n\n" + compileStruct(st);
-
 	// make contract
 	ContractName = contract->name();
 	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
 
-	// structs
+	// structs and enums
 	for (const StructDefinition* d: contract->definedStructs())
-		compileStructDefinition(d);
-
-	// enum
+		compileStructDecl(d);
 	for (const EnumDefinition* d: contract->definedEnums())
-		compileEnumDefinition(d);
+		compileEnumDecl(d);
 
 	// perform optimization passes
 	FunctionPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(Module.get());
@@ -113,9 +86,7 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 	// functions
 	for (const FunctionDefinition* func: contract->definedFunctions())
-		compileFunction(func);
-
-
+		compileFuncDecl(func);
 }
 
 
@@ -123,34 +94,32 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
  *                Compile Declarations
  ********************************************************/
 
-LLStructType* LlvmCompiler::compileStructDefinition(const StructDefinition* d) {
-	string structName = ContractName + "." + d->name();
+LLStructType* LlvmCompiler::compileStructDecl(const StructDefinition* d) {
+	string llStructName = ContractName + "." + d->name();
 
-	vector<LLType*> elements;
-	for (auto var : d->members()) {
-		LLType* elemType = compileType(var->type());
-		elements.push_back(elemType);
-	}
+	// fields of structs
+	vector<LLType*> llElements;
+	for (auto var : d->members())
+		llElements.push_back(compileType(var->type()));
 
-	LLStructType* llvmStruct = LLStructType::create(Context, elements,
-																									structName, true);
+	LLStructType* llStructType = LLStructType::create(Context, llElements,
+																										llStructName, true);
+	MapStructTypes[llStructName] = llStructType;
 
-	MapStructTypes[structName] = llvmStruct;
-
-	return llvmStruct;
+	return llStructType;
 }
 
-LLIntegerType* LlvmCompiler::compileEnumDefinition(const EnumDefinition* d) {
-	string enumName = ContractName + "." + d->name();
+LLIntegerType* LlvmCompiler::compileEnumDecl(const EnumDefinition* d) {
+	string llEnumName = d->sourceUnitName() + "." + d->name();
 
 	// map value members of an enum type to integers
-	map<string, int> memberValues;
-	int memberValue = 0;
+	map<string, int> llMemberValues;
+	int llMemberValue = 0;
 	for (auto m : d->members()) {
-		memberValues[m->name()] = memberValue;
-		memberValue++;
+		llMemberValues[m->name()] = llMemberValue;
+		llMemberValue++;
 	}
-	MapEnumTypes[enumName] = memberValues;
+	MapEnumTypes[llEnumName] = llMemberValues;
 
 	// compile an enum type to an integer type
 	return LLIntegerType::get(Context, 64);
@@ -158,44 +127,44 @@ LLIntegerType* LlvmCompiler::compileEnumDefinition(const EnumDefinition* d) {
 
 
 LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
-	LLType* type = compileType(var->type());
+	LLType* llType = compileType(var->type());
 	string name = var->name();
 
-	LLConstant *initValue = nullptr;
+	LLConstant *llInitValue = nullptr;
 
 	if (Expression* v = var->value().get())
-		initValue = llvm::dyn_cast<LLConstant>(compileExp(v));
+		llInitValue = llvm::dyn_cast<LLConstant>(compileExp(v));
 
-	auto outputVar = new LLGlobalVar(*Module, type, false,
-																	 LLGlobalVar::CommonLinkage,
-																	 initValue, name);
+	auto llVar = new LLGlobalVar(*Module, llType, false,
+															 LLGlobalVar::CommonLinkage,
+															 llInitValue, name);
 
-	MapGlobalVars[name] = outputVar;
-	SetGlobalVars.insert(outputVar);
+	MapGlobalVars[name] = llVar;
+	SetGlobalVars.insert(llVar);
 
-	return outputVar;
+	return llVar;
 }
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
 
-	LLType* type = compileType(var.type());
+	LLType* llType = compileType(var.type());
 	string name = var.name();
 
-	LLValue* outputVar = Builder.CreateAlloca(type, nullptr, name);
-	MapLocalVars[name] = outputVar;
-	SetLocalVars.insert(outputVar);
+	LLValue* llVar = Builder.CreateAlloca(llType, nullptr, name);
+	MapLocalVars[name] = llVar;
+	SetLocalVars.insert(llVar);
 
-	return outputVar;
+	return llVar;
 }
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 																					 const Expression* value) {
-	auto outputVar = compileLocalVarDecl(var);
-	auto llvmValue = compileExp(value);
-	return Builder.CreateStore(llvmValue, outputVar);
+	auto llVar = compileLocalVarDecl(var);
+	auto llValue = compileExp(value);
+	return Builder.CreateStore(llValue, llVar);
 }
 
-LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
+LLFunction* LlvmCompiler::compileFuncDecl(const FunctionDefinition* func) {
 	// prepare environment
 	MapLocalVars.clear();
 
@@ -205,35 +174,31 @@ LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
 	auto returnTypes = funcType->returnParameterTypes();
-	LLType* llvmRetType;
+	LLType* llRetType;
 	if (returnTypes.size() == 0)
-		llvmRetType = LLType::getVoidTy(Context);
+		llRetType = LLType::getVoidTy(Context);
 	else if (returnTypes.size() == 1)
-		llvmRetType = compileType(returnTypes.at(0));
+		llRetType = compileType(returnTypes.at(0));
 	else {
 		// TODO: handle returned type tuple
 		LogError("CompileFunc: unknown returned function type");
 	}
 
 	// parameters
-	// FIXME: need to create local vars to store these parameters like Clang?
-	vector<LLType*> llvmParamTypes;
+	vector<LLType*> llParamTypes;
 	auto params = func->parameters();
-	for (auto p: params) {
-		llvmParamTypes.push_back(compileType(p->type()));
-	}
+	for (auto p: params)
+		llParamTypes.push_back(compileType(p->type()));
 
-	LLFunctionType* llvmFuncType =
-		LLFunctionType::get(llvmRetType, llvmParamTypes, false);
+	LLFunctionType* llFType = LLFunctionType::get(llRetType, llParamTypes, false);
 
 	// create function
-	LLFunction *llvmFunc = LLFunction::Create(llvmFuncType,
-																						LLFunction::CommonLinkage,
-																						funcName, Module.get());
+	LLFunction *llFunc = LLFunction::Create(llFType, LLFunction::CommonLinkage,
+																					funcName, Module.get());
 
 	// set names for parameters and also record it to local names
 	int index = 0;
-	for (auto &arg : llvmFunc->args()) {
+	for (auto &arg : llFunc->args()) {
 		string paramName = params.at(index)->name();
 		arg.setName(paramName);
 		MapLocalVars[paramName] = &arg;
@@ -241,19 +206,19 @@ LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 	}
 
 	// translate new function
-	LLBlock *block = LLBlock::Create(Context, "entry", llvmFunc);
-	Builder.SetInsertPoint(block);
+	LLBlock *llBlock = LLBlock::Create(Context, "entry", llFunc);
+	Builder.SetInsertPoint(llBlock);
 
 	for (auto stmt: func->body().statements())
 		compileStmt(*stmt);
 
 	// validate function
-	llvm::verifyFunction(*llvmFunc);
+	llvm::verifyFunction(*llFunc);
 
 	// run optimization passes
-	FunctionPM->run(*llvmFunc);
+	FunctionPM->run(*llFunc);
 
-	return llvmFunc;
+	return llFunc;
 }
 
 /********************************************************
@@ -262,43 +227,43 @@ LLFunction* LlvmCompiler::compileFunction(const FunctionDefinition* func) {
 
 void LlvmCompiler::compileStmt(Statement const& stmt) {
 	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<Block const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<Block const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<ForStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<ForStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<WhileStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<WhileStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<Continue const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<Continue const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<Break const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<Break const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<Return const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<Return const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<Throw const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<Throw const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
-	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
-		if (s != nullptr) return compileStmt(s);
+	else if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
+		return compileStmt(s);
 	}
 }
 
@@ -308,10 +273,10 @@ void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(Block const* stmt) {
-	LLFunction* llvmFunc = Builder.GetInsertBlock()->getParent();
+	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* block = LLBlock::Create(Context, "block", llvmFunc);
-	Builder.SetInsertPoint(block);
+	LLBlock* llBlock = LLBlock::Create(Context, "block", llFunc);
+	Builder.SetInsertPoint(llBlock);
 
 	for (auto s : stmt->statements())
 		compileStmt(*s);
@@ -323,120 +288,107 @@ void LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(IfStatement const* stmt) {
-	LLFunction* llvmFunc = Builder.GetInsertBlock()->getParent();
+	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* thenBlock = LLBlock::Create(Context, "if.then", llvmFunc);
-	LLBlock* elseBlock = LLBlock::Create(Context, "if.else", llvmFunc);
-	LLBlock* endBlock = LLBlock::Create(Context, "if.end", llvmFunc);
+	LLBlock* llBlockThen = LLBlock::Create(Context, "if.then", llFunc);
+	LLBlock* llBlockElse = LLBlock::Create(Context, "if.else", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, "if.end", llFunc);
 
-	LLValue* condValue = compileExp(&(stmt->condition()));
-	Builder.CreateCondBr(condValue, thenBlock, elseBlock);
+	LLValue* llCond = compileExp(&(stmt->condition()));
+	Builder.CreateCondBr(llCond, llBlockThen, llBlockElse);
 
-	Builder.SetInsertPoint(thenBlock);
+	Builder.SetInsertPoint(llBlockThen);
 	compileStmt(stmt->trueStatement());
-	Builder.CreateBr(endBlock);
+	Builder.CreateBr(llBlockEnd);
 
 	auto elseStmt = stmt->falseStatement();
 	if (elseStmt != nullptr) {
-		Builder.SetInsertPoint(elseBlock);
+		Builder.SetInsertPoint(llBlockElse);
 		compileStmt(*elseStmt);
-		Builder.CreateBr(endBlock);
+		Builder.CreateBr(llBlockEnd);
 
-		Builder.SetInsertPoint(endBlock);
-		// LLType* phiType =  thenValue->getType();
+		Builder.SetInsertPoint(llBlockEnd);
 		// llvm::PHINode *phiNode = Builder.CreatePHI(phiType, 2, "if_stmt");
-		// LogDebug("ThenBlock: ", thenBlock);
-		// LogDebug("ThenValue: ", thenValue);
-		// LogDebug("ElseBlock: ", elseBlock);
-		// LogDebug("ElseValue: ", elseValue);
-		// LogDebug("ElseType: ", elseValue->getType());
-		// LogDebug("PhiType: ", phiType);
-		// phiNode->addIncoming(thenValue, thenBlock);
-		// phiNode->addIncoming(elseValue, elseBlock);
+		// phiNode->addIncoming(thenValue, llBlockThen);
+		// phiNode->addIncoming(elseValue, llBlockElse);
 		// return phiNode;
 	}
 }
 
 void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
-	LLFunction* llvmFunc = Builder.GetInsertBlock()->getParent();
+	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* condBlock = LLBlock::Create(Context, "while.cond", llvmFunc);
-	LLBlock* bodyBlock = LLBlock::Create(Context, "while.body", llvmFunc);
-	LLBlock* endBlock = LLBlock::Create(Context, "while.end", llvmFunc);
+	LLBlock* llBlockCond = LLBlock::Create(Context, "while.cond", llFunc);
+	LLBlock* llBlockBody = LLBlock::Create(Context, "while.body", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, "while.end", llFunc);
 
 	// store to the loop stack
-	LoopInfo loop {condBlock, endBlock};
-	LoopStack.push(loop);
+	LoopInfo llLoop {llBlockCond, llBlockEnd};
+	LoopStack.push(llLoop);
 
 	// loop condition
-	Builder.SetInsertPoint(condBlock);
-	LLValue* condValue = compileExp(&(stmt->condition()));
-	Builder.CreateCondBr(condValue, bodyBlock, endBlock);
+	Builder.SetInsertPoint(llBlockCond);
+	LLValue* llCond = compileExp(&(stmt->condition()));
+	Builder.CreateCondBr(llCond, llBlockBody, llBlockEnd);
 
 	// loop body
-	Builder.SetInsertPoint(bodyBlock);
+	Builder.SetInsertPoint(llBlockBody);
 	compileStmt(stmt->body());
-	Builder.CreateBr(condBlock);
+	Builder.CreateBr(llBlockCond);
 
 	// end block
-	Builder.SetInsertPoint(endBlock);
+	Builder.SetInsertPoint(llBlockEnd);
 
 	// remove the loop from the stack
 	LoopStack.pop();
 }
 
 void LlvmCompiler::compileStmt(ForStatement const* stmt) {
-	LLFunction* llvmFunc = Builder.GetInsertBlock()->getParent();
+	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* condBlock = LLBlock::Create(Context, "for.cond", llvmFunc);
-	LLBlock* loopBlock = LLBlock::Create(Context, "for.loop", llvmFunc);
-	LLBlock* bodyBlock = LLBlock::Create(Context, "for.body", llvmFunc);
-	LLBlock* endBlock = LLBlock::Create(Context, "for.end", llvmFunc);
+	LLBlock* llBlockCond = LLBlock::Create(Context, "for.cond", llFunc);
+	LLBlock* llBlockLoop = LLBlock::Create(Context, "for.loop", llFunc);
+	LLBlock* llBlockBody = LLBlock::Create(Context, "for.body", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, "for.end", llFunc);
 
 	// store to the loop stack
-	LoopInfo loop {condBlock, endBlock};
-	LoopStack.push(loop);
+	LoopInfo llLoop {llBlockCond, llBlockEnd};
+	LoopStack.push(llLoop);
 
 	// loop initialization
 	compileStmt(*(stmt->initializationExpression()));
-	Builder.CreateBr(condBlock);
+	Builder.CreateBr(llBlockCond);
 
 	// loop condition
-	Builder.SetInsertPoint(condBlock);
-	LLValue* condValue = compileExp(stmt->condition());
-	Builder.CreateCondBr(condValue, bodyBlock, endBlock);
+	Builder.SetInsertPoint(llBlockCond);
+	LLValue* llCond = compileExp(stmt->condition());
+	Builder.CreateCondBr(llCond, llBlockBody, llBlockEnd);
 
 	// loop expression
-	Builder.SetInsertPoint(loopBlock);
+	Builder.SetInsertPoint(llBlockLoop);
 	compileStmt(stmt->loopExpression());
-	Builder.CreateBr(condBlock);
+	Builder.CreateBr(llBlockCond);
 
 	// loop body
-	Builder.SetInsertPoint(bodyBlock);
+	Builder.SetInsertPoint(llBlockBody);
 	compileStmt(stmt->body());
-	Builder.CreateBr(loopBlock);
+	Builder.CreateBr(llBlockLoop);
 
 	// end block
-	Builder.SetInsertPoint(endBlock);
+	Builder.SetInsertPoint(llBlockEnd);
 
 	// remove the loop from the stack
 	LoopStack.pop();
 }
 
 void LlvmCompiler::compileStmt(Continue const* stmt) {
-	if (LoopStack.empty())
-		LogError("compileStmt: Continue: empty Loop Stack");
-
-	LoopInfo loop = LoopStack.top();
-	Builder.CreateBr(loop.loopHead);
+	LoopInfo llLoop = LoopStack.top();
+	Builder.CreateBr(llLoop.loopHead);
 }
 
 void LlvmCompiler::compileStmt(Break const* stmt) {
-	if (LoopStack.empty())
-		LogError("compileStmt: Break: empty Loop Stack");
-
-	LoopInfo loop = LoopStack.top();
-	Builder.CreateBr(loop.loopEnd);
+	LoopInfo llLoop = LoopStack.top();
+	Builder.CreateBr(llLoop.loopEnd);
 }
 
 void LlvmCompiler::compileStmt(Return const* stmt) {
@@ -512,15 +464,9 @@ LLValue* LlvmCompiler::compileExp(Conditional const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
-	LLValue* lhs = compileExp(&(exp->leftHandSide()));
-	LLValue* rhs = compileExp(&(exp->rightHandSide()));
-
-	if (lhs == nullptr)
-		LogError("compileExp: Assignment: null lhs");
-	if (rhs == nullptr)
-		LogError("compileExp: Assignment: null rhs");
-
-	return Builder.CreateStore(rhs, lhs);
+	LLValue* llLhs = compileExp(&(exp->leftHandSide()));
+	LLValue* llRhs = compileExp(&(exp->rightHandSide()));
+	return Builder.CreateStore(llRhs, llLhs);
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
@@ -530,26 +476,26 @@ LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
-	LLValue* subExp = compileExp(&(exp->subExpression()));
-	if (!subExp) return nullptr;
+	LLValue* llSubExp = compileExp(&(exp->subExpression()));
+	if (!llSubExp) return nullptr;
 
 	switch (exp->getOperator()) {
 	case Token::Not:
-		return Builder.CreateNot(subExp, "");
+		return Builder.CreateNot(llSubExp);
 
 	case Token::BitNot:
-		return Builder.CreateNot(subExp, "");
+		return Builder.CreateNot(llSubExp);
 
 	case Token::Inc: {
-		LLValue* one = LLConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateAdd(subExp, one, "");
-		return Builder.CreateStore(newExp, subExp);
+		LLValue* llOne = LLConstantInt::get(llSubExp->getType(), 1);
+		LLValue* llResult = Builder.CreateAdd(llSubExp, llOne);
+		return Builder.CreateStore(llResult, llSubExp);
 	}
 
 	case Token::Dec: {
-		LLValue* one = LLConstantInt::get(subExp->getType(), 1);
-		auto newExp = Builder.CreateSub(subExp, one, "");
-		return Builder.CreateStore(newExp, subExp);
+		LLValue* llOne = LLConstantInt::get(llSubExp->getType(), 1);
+		LLValue* llResult = Builder.CreateSub(llSubExp, llOne);
+		return Builder.CreateStore(llResult, llSubExp);
 	}
 
 	case Token::Delete:
@@ -563,73 +509,73 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
-	LLValue* lhs = compileExp(&(exp->leftExpression()));
-	LLValue* rhs = compileExp(&(exp->rightExpression()));
+	LLValue* llLhs = compileExp(&(exp->leftExpression()));
+	LLValue* llRhs = compileExp(&(exp->rightExpression()));
 
-	if (!lhs || !rhs) return nullptr;
+	if (!llLhs || !llRhs) return nullptr;
 
 	switch (exp->getOperator()) {
 	case Token::Equal:
-		return Builder.CreateICmpEQ(lhs, rhs, "");
+		return Builder.CreateICmpEQ(llLhs, llRhs);
 
 	case Token::NotEqual:
-		return Builder.CreateICmpNE(lhs, rhs, "");
+		return Builder.CreateICmpNE(llLhs, llRhs);
 
 	case Token::LessThan:
-		return Builder.CreateICmpSLT(lhs, rhs, "");
+		return Builder.CreateICmpSLT(llLhs, llRhs);
 
 	case Token::GreaterThan:
-		return Builder.CreateICmpSGT(lhs, rhs, "");
+		return Builder.CreateICmpSGT(llLhs, llRhs);
 
 	case Token::LessThanOrEqual:
-		return Builder.CreateICmpSLE(lhs, rhs, "");
+		return Builder.CreateICmpSLE(llLhs, llRhs);
 
 	case Token::GreaterThanOrEqual:
-		return Builder.CreateICmpSGE(lhs, rhs, "");
+		return Builder.CreateICmpSGE(llLhs, llRhs);
 
 	case Token::Comma:
 		LogError("compileExp: BinaryOp: need to support Comma Exp");
 		return nullptr;
 
 	case Token::Or:
-		return Builder.CreateOr(lhs, rhs, "");
+		return Builder.CreateOr(llLhs, llRhs);
 
 	case Token::And:
-		return Builder.CreateOr(lhs, rhs, "");
+		return Builder.CreateOr(llLhs, llRhs);
 
 	case Token::BitOr:
-		return Builder.CreateOr(lhs, rhs, "");
+		return Builder.CreateOr(llLhs, llRhs);
 
 	case Token::BitXor:
-		return Builder.CreateXor(lhs, rhs, "");
+		return Builder.CreateXor(llLhs, llRhs);
 
 	case Token::BitAnd:
-		return Builder.CreateXor(lhs, rhs, "");
+		return Builder.CreateXor(llLhs, llRhs);
 
 	case Token::SHL:
-		return Builder.CreateShl(lhs, rhs, "");
+		return Builder.CreateShl(llLhs, llRhs);
 
 	case Token::SAR:
 		LogError("compileExp: BinaryOp: need to support SAR");
 		return nullptr;
 
 	case Token::SHR:
-		return Builder.CreateLShr(lhs, rhs, "");
+		return Builder.CreateLShr(llLhs, llRhs);
 
 	case Token::Add:
-		return Builder.CreateAdd(lhs, rhs, "");
+		return Builder.CreateAdd(llLhs, llRhs);
 
 	case Token::Sub:
-		return Builder.CreateSub(lhs, rhs, "");
+		return Builder.CreateSub(llLhs, llRhs);
 
 	case Token::Mul:
-		return Builder.CreateMul(lhs, rhs, "");
+		return Builder.CreateMul(llLhs, llRhs);
 
 	case Token::Div:
-		return Builder.CreateUDiv(lhs, rhs, "");
+		return Builder.CreateUDiv(llLhs, llRhs);
 
 	case Token::Mod:
-		return Builder.CreateURem(lhs, rhs, "");
+		return Builder.CreateURem(llLhs, llRhs);
 
 	case Token::Exp:
 		LogError("compileExp: BinaryOp: unhandled Exponential Exp");
@@ -641,67 +587,44 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	}
 }
 
-// Note: a FunctionCall in Solidity can be an ordinary function call,
-// a type casting, or a struct construction.
 LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	FunctionCallAnnotation &annon = exp->annotation();
-	TypePointer expType = annon.type;
-	LLType* type = compileType(expType);
+	LLType* llType = compileType(annon.type);
 
 	if (annon.kind == FunctionCallKind::FunctionCall) {
+		LogDebug("compileExp: Normal FunctionCall");
+
 		string funcName = *(exp->names().at(0));
-		LogDebug("FuncName", funcName);
-		LLFunction *callee = Module->getFunction(funcName);
+		LLFunction *llFunc = Module->getFunction(funcName);
 
-		vector<LLValue*> arguments;
+		vector<LLValue*> llArgs;
 		for (auto arg : exp->arguments())
-			arguments.push_back(compileExp((&arg)->get()));
+			llArgs.push_back(compileExp((&arg)->get()));
 
-		if (callee->arg_size() != arguments.size()) {
-			LogError("compileExp: FunctionCall: mistmatch arguments");
-			return nullptr;
-		}
-
-		return Builder.CreateCall(callee, arguments, "functioncall");
+		return Builder.CreateCall(llFunc, llArgs);
 	}
 
 	else if (annon.kind == FunctionCallKind::StructConstructorCall) {
-		vector<LLConstant*> arguments;
+		vector<LLConstant*> llArgs;
 		for (auto arg : exp->arguments())
 			if (auto a = llvm::dyn_cast<LLConstant>(compileExp((&arg)->get())))
-				arguments.push_back(a);
+				llArgs.push_back(a);
 
-		if (auto structType = llvm::dyn_cast<LLStructType>(type))
-			return llvm::ConstantStruct::get(structType, arguments);
-		else {
-			LogError("compileExp: FunctionCall: expect StructType");
-			return nullptr;
-		}
+		if (auto llStructType = llvm::dyn_cast<LLStructType>(llType))
+			return llvm::ConstantStruct::get(llStructType, llArgs);
 	}
 
 	else if (annon.kind == FunctionCallKind::TypeConversion) {
+		LLValue* llArg = compileExpArgument((&(exp->arguments().at(0)))->get());
 
-		LogDebug("Type Conversion to", type);
-
-		if (exp->arguments().size() > 1)
-			LogError("TypeConversion: expect 1 argument");
-
-		LLValue* arg = compileExpArgument((&(exp->arguments().at(0)))->get());
-
-		if (auto t = dynamic_cast<IntegerType const*>(expType)) {
+		if (auto t = dynamic_cast<IntegerType const*>(annon.type)) {
 			if (t->isSigned())
-				return Builder.CreateSExtOrTrunc(arg, type);
-			else {
-				LogDebug("LoadedArg: ", arg);
-				return Builder.CreateZExtOrTrunc(arg, type);
-			}
+				return Builder.CreateSExtOrTrunc(llArg, llType);
+			else
+				return Builder.CreateZExtOrTrunc(llArg, llType);
 		}
-		else if (auto t = dynamic_cast<EnumType const*>(expType)) {
-			return Builder.CreateZExtOrTrunc(arg, type);
-		}
-
-
-		return nullptr;
+		else
+			return Builder.CreateZExtOrTrunc(llArg, llType);
 	}
 
 	else {
@@ -716,18 +639,14 @@ LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
-	Expression const& baseExp = exp->expression();
-	TypePointer baseType = baseExp.annotation().type;
 	TypePointer coreType = exp->annotation().type;
 
-	LLValue* outputBaseExp = compileExp(&baseExp);
-
 	if (auto type = dynamic_cast<EnumType const*>(coreType)) {
-		string enumName = type->canonicalName();
-		map<string, int> memberValues = MapEnumTypes[enumName];
-		int value = memberValues[exp->memberName()];
-		LLIntegerType* intType = LLIntegerType::get(Context, 64);
-		return LLConstantInt::get(intType, value);
+		string llEnumName = type->canonicalName();
+		map<string, int> llMemberValues = MapEnumTypes[llEnumName];
+		int value = llMemberValues[exp->memberName()];
+		LLIntegerType* llIntType = LLIntegerType::get(Context, 64);
+		return LLConstantInt::get(llIntType, value);
 	}
 
 	LogError("compileExp: MemberAccess: unknown exp");
@@ -743,14 +662,15 @@ LLValue* LlvmCompiler::compileExp(IndexAccess const* exp) {
 
 LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 	if (auto e = dynamic_cast<Identifier const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+		compileExp(e);
 	}
-	if (auto e = dynamic_cast<ElementaryTypeNameExpression const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<ElementaryTypeNameExpression const*>(exp)) {
+		return compileExp(e);
 	}
-	if (auto e = dynamic_cast<Literal const*>(exp)) {
-		if (e != nullptr) return compileExp(e);
+	else if (auto e = dynamic_cast<Literal const*>(exp)) {
+		return compileExp(e);
 	}
+
 	LogError("compileExp: PrimaryExpression: unknown expression");
 	return nullptr;
 }
@@ -762,7 +682,6 @@ LLValue* LlvmCompiler::compileExp(Identifier const *exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
-	// TODO
 	LogError("compileExp: ElementaryTypeNameExpression: unhandled");
 	return nullptr;
 }
@@ -803,18 +722,18 @@ LLValue* LlvmCompiler::compileExp(Literal const *exp) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExpArgument(Expression const* exp) {
-	LLValue* arg = compileExp(exp);
+	LLValue* llArg = compileExp(exp);
 
 	// lookup local vars first
-	if (SetLocalVars.find(arg) != SetLocalVars.end())
-		return Builder.CreateLoad(arg);
+	if (SetLocalVars.find(llArg) != SetLocalVars.end())
+		return Builder.CreateLoad(llArg);
 
 	// then global vars
-	if (SetGlobalVars.find(arg) != SetGlobalVars.end())
-		return Builder.CreateLoad(arg);
+	if (SetGlobalVars.find(llArg) != SetGlobalVars.end())
+		return Builder.CreateLoad(llArg);
 
 	// otherwise, the current value is intermediate
-	return arg;
+	return llArg;
 }
 
 /********************************************************
@@ -823,19 +742,19 @@ LLValue* LlvmCompiler::compileExpArgument(Expression const* exp) {
 
 LLType* LlvmCompiler::compileTypeName(TypeName const* type) {
 	if (auto t = dynamic_cast<ElementaryTypeName const*>(type)) {
-		if (t != nullptr) return compileTypeName(t);
+		return compileTypeName(t);
 	}
-	if (auto t = dynamic_cast<UserDefinedTypeName const*>(type)) {
-		if (t != nullptr) return compileTypeName(t);
+	else if (auto t = dynamic_cast<UserDefinedTypeName const*>(type)) {
+		return compileTypeName(t);
 	}
-	if (auto t = dynamic_cast<FunctionTypeName const*>(type)) {
-		if (t != nullptr) return compileTypeName(t);
+	else if (auto t = dynamic_cast<FunctionTypeName const*>(type)) {
+		return compileTypeName(t);
 	}
-	if (auto t = dynamic_cast<Mapping const*>(type)) {
-		if (t != nullptr) return compileTypeName(t);
+	else if (auto t = dynamic_cast<Mapping const*>(type)) {
+		return compileTypeName(t);
 	}
-	if (auto t = dynamic_cast<ArrayTypeName const*>(type)) {
-		if (t != nullptr) return compileTypeName(t);
+	else if (auto t = dynamic_cast<ArrayTypeName const*>(type)) {
+		return compileTypeName(t);
 	}
 
 	LogError("compileTypeName: Unknown TypeName: ", type);
@@ -890,19 +809,17 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 		return LLIntegerType::get(Context, 8);
 	}
 	else if (auto t = dynamic_cast<StructType const*>(type)) {
-		string name = t->canonicalName();
-		LLStructType* outputType = MapStructTypes[name];
-		return outputType;
+		return MapStructTypes[t->canonicalName()];
 	}
 	else if (auto t = dynamic_cast<FixedBytesType const*>(type)) {
 		uint64_t size = t->numBytes();
-		auto baseType = LLIntegerType::get(Context, 8);
-		return LLArrayType::get(baseType, size);
+		LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
+		return LLArrayType::get(llBaseType, size);
 	}
 	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
 		uint64_t size = (uint64_t)t->length();  // converting u256 to uint64
-		auto baseType = compileType(t->baseType());
-		return LLArrayType::get(baseType, size);
+		LLType* llBaseType = compileType(t->baseType());
+		return LLArrayType::get(llBaseType, size);
 	}
 	else if (auto t = dynamic_cast<ContractType const*>(type)) {
 		LogError("ContractType");
@@ -912,6 +829,8 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 		return LLIntegerType::get(Context, 64);
 	}
 	else if (auto t = dynamic_cast<TupleType const*>(type)) {
+		vector<TypePointer> components = t->components();
+		cout << "TupleType: num of components: " << components.size();
 		LogError("TupleType");
 	}
 	else if (auto t = dynamic_cast<FunctionType const*>(type)) {
@@ -952,18 +871,11 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
  ********************************************************/
 
 string LlvmCompiler::stringOf(llvm::Module* module) {
-	if (module == nullptr)
-		return "(nullptr module)";
-
 	string result = "";
-
-	llvm::LLVMContext &context = module->getContext();
-
 	// structs
 	for (LLType* structType : module->getIdentifiedStructTypes())
 		result = result + "\n**************\n\n" + stringOf(structType);
 	return result;
-
 	// functions
 	for (auto &func : module->getFunctionList())
 		result = result + "\n**************\n\n" + stringOf(&func);
@@ -971,9 +883,6 @@ string LlvmCompiler::stringOf(llvm::Module* module) {
 }
 
 string LlvmCompiler::stringOf(LLFunction* func) {
-	if (func == nullptr)
-		return "(nullptr function)";
-
 	string result = "";
 	for (auto &block : func->getBasicBlockList()) {
 		result = result + stringOf(&block) + "\n\n";
@@ -982,9 +891,6 @@ string LlvmCompiler::stringOf(LLFunction* func) {
 }
 
 string LlvmCompiler::stringOf(LLBlock* block) {
-	if (block == nullptr)
-		return "(nullptr block)";
-
 	string result = "";
 	for (auto &inst : block->getInstList()) {
 		result = result + stringOf(&inst) + "\n";
@@ -993,24 +899,16 @@ string LlvmCompiler::stringOf(LLBlock* block) {
 }
 
 string LlvmCompiler::stringOf(LLValue* value) {
-	if (value == nullptr)
-		return "(nullptr value)";
-
 	string str;
 	llvm::raw_string_ostream result(str);
 	value->print(result);
-
 	return result.str();
 }
 
 string LlvmCompiler::stringOf(LLType* type) {
-	if (type == nullptr)
-		return "(nullptr type)";
-
 	string str;
 	llvm::raw_string_ostream result(str);
 	type->print(result);
-
 	return result.str();
 }
 

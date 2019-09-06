@@ -20,6 +20,7 @@ contract SimpleStruct {
   function foo() public {
     Foo memory m;
     m.value = 1;
+    m.data = 2;
   }
 
   function get() public view returns (uint) {

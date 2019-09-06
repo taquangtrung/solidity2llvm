@@ -635,9 +635,13 @@ LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
+	TypePointer memType = exp->annotation().type;
+
 	Expression const& baseExp = exp->expression();
 	TypePointer baseType = baseExp.annotation().type;
-	TypePointer memType = exp->annotation().type;
+
+	LLValue* llBaseExp = compileExp(&baseExp);
+	LLType* llBaseType = compileType(baseType);
 
 	if (dynamic_cast<TypeType const*>(baseType)) {
 		if (dynamic_cast<EnumType const*>(memType)) {
@@ -648,18 +652,20 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 			return LLConstantInt::get(llIntType, value);
 		}
 	}
-	else if (dynamic_cast<StructType const*>(baseType)) {
+	else if (auto structType = dynamic_cast<StructType const*>(baseType)) {
 		string llStructName = baseType->canonicalName();
 		LLStructType* llStructType = MapStructTypes[llStructName];
+		StructDefinition const& structDef = structType->structDefinition();
+
 		string memberName = exp->memberName();
 		int index = 0;
-		llStructType->elements();
-		// exp->expression();		// Builder.CreateGEP
+		for (auto var: structDef.members()) {
+			if (var->name() == memberName)
+				break;
+			index++;
+		}
 
-		// map<string, int> llMemberValues = MapEnumTypes[llEnumName];
-		// int value = llMemberValues[exp->memberName()];
-		// LLIntegerType* llIntType = LLIntegerType::get(Context, 64);
-		// return LLConstantInt::get(llIntType, value);
+		return Builder.CreateConstInBoundsGEP1_32(llBaseType, llBaseExp, index);
 	}
 
 	LogError("compileExp: MemberAccess: unknown exp: ", *exp);

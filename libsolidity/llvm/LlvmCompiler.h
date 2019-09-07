@@ -74,14 +74,17 @@ class LlvmCompiler {
 	explicit LlvmCompiler():
 	CompilingContract(nullptr), Builder(Context) { }
 
-	void compileContract(const ContractDefinition* contract);
+	void compileContract(ContractDefinition const* contract);
 
-	// compile declarations
-	LLStructType* compileStructDecl(const StructDefinition*);
-	LLIntegerType* compileEnumDecl(const EnumDefinition*);
-	LLValue* compileGlobalVarDecl(const VariableDeclaration*);
-	LLValue* compileLocalVarDecl(VariableDeclaration&, const Expression*);
+	// declarations
+	LLStructType* compileStructDecl(StructDefinition const*);
+	LLIntegerType* compileEnumDecl(EnumDefinition const*);
+	LLValue* compileGlobalVarDecl(VariableDeclaration const*);
+	LLValue* compileLocalVarDecl(VariableDeclaration&, Expression const*);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
+
+	// block
+	LLBlock* createLlvmBlock(string, LLFunction*);
 
 	// compile statements
 	void compileStmt(Statement const& stmt);
@@ -147,15 +150,19 @@ private:
 	llvm::IRBuilder<> Builder;
 	unique_ptr<LLModule> Module;
 	string ContractName;
-	map<string, LLValue *> MapGlobalVars;
-	map<string, LLValue *> MapLocalVars;
-	set<LLValue *> SetGlobalVars;
-	set<LLValue *> SetLocalVars;
-	map<string, LLStructType *> MapStructTypes;
-	map<string, map<string, int> > MapEnumTypes;
 	unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
 	stack<LoopInfo> LoopStack;
 
+	// global vars for module
+	map<string, LLValue *> MapGlobalVars;
+	set<LLValue *> SetGlobalVars;
+	map<string, LLStructType *> MapStructTypes;
+	map<string, map<string, int> > MapEnumTypes;
+
+	// global vars for function
+	map<string, LLValue *> MapLocalVars;
+	set<LLValue *> SetLocalVars;
+	int IndexBlock;
 };
 
 } // end of namespace solidity

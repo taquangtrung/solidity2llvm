@@ -20,7 +20,7 @@ using namespace dev;
 using namespace dev::solidity;
 
 
-string LlvmCompiler::llvmString(const ContractDefinition* contract,
+string LlvmCompiler::llvmString(ContractDefinition const* contract,
 																StringMap sourceCodes) {
 	// llvm::IRBuilder<> Builder1(Context);
 	LoopStack.empty();
@@ -51,7 +51,7 @@ string LlvmCompiler::llvmString(const ContractDefinition* contract,
  *               Compile Contract
  ********************************************************/
 
-void LlvmCompiler::compileContract(const ContractDefinition* contract) {
+void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 	// prepare environment
 	MapGlobalVars.clear();
 
@@ -60,9 +60,9 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
 
 	// structs and enums
-	for (const StructDefinition* d: contract->definedStructs())
+	for (StructDefinition const* d: contract->definedStructs())
 		compileStructDecl(d);
-	for (const EnumDefinition* d: contract->definedEnums())
+	for (EnumDefinition const* d: contract->definedEnums())
 		compileEnumDecl(d);
 
 	// perform optimization passes
@@ -81,11 +81,11 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
 
 	FunctionPM->doInitialization();
 
-	for (const VariableDeclaration* var: contract->stateVariables())
+	for (VariableDeclaration const* var: contract->stateVariables())
 		compileGlobalVarDecl(var);
 
 	// functions
-	for (const FunctionDefinition* func: contract->definedFunctions())
+	for (FunctionDefinition const* func: contract->definedFunctions())
 		compileFuncDecl(func);
 }
 
@@ -94,7 +94,7 @@ void LlvmCompiler::compileContract(const ContractDefinition* contract) {
  *                Compile Declarations
  ********************************************************/
 
-LLStructType* LlvmCompiler::compileStructDecl(const StructDefinition* d) {
+LLStructType* LlvmCompiler::compileStructDecl(StructDefinition const* d) {
 	string name = ContractName + "." + d->name();
 
 	// fields of structs
@@ -108,7 +108,7 @@ LLStructType* LlvmCompiler::compileStructDecl(const StructDefinition* d) {
 	return llType;
 }
 
-LLIntegerType* LlvmCompiler::compileEnumDecl(const EnumDefinition* d) {
+LLIntegerType* LlvmCompiler::compileEnumDecl(EnumDefinition const* d) {
 	string llEnumName = d->sourceUnitName() + "." + d->name();
 
 	// map value members of an enum type to integers
@@ -125,7 +125,7 @@ LLIntegerType* LlvmCompiler::compileEnumDecl(const EnumDefinition* d) {
 }
 
 
-LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
+LLValue* LlvmCompiler::compileGlobalVarDecl(VariableDeclaration const* var) {
 	LLType* llType = compileType(var->type());
 	string name = var->name();
 
@@ -145,7 +145,7 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(const VariableDeclaration* var) {
 }
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
-																					 const Expression* value) {
+																					 Expression const* value) {
 	LLType* llType = compileType(var.type());
 	string name = var.name();
 
@@ -160,9 +160,10 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 	return Builder.CreateStore(llValue, llVar);
 }
 
-LLFunction* LlvmCompiler::compileFuncDecl(const FunctionDefinition* func) {
+LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// prepare environment
 	MapLocalVars.clear();
+	IndexBlock = 0;
 
 	// function name
 	string funcName = func->name();
@@ -202,7 +203,7 @@ LLFunction* LlvmCompiler::compileFuncDecl(const FunctionDefinition* func) {
 	}
 
 	// translate new function
-	LLBlock *llBlock = LLBlock::Create(Context, "entry", llFunc);
+	LLBlock *llBlock = createLlvmBlock("entry", llFunc);
 	Builder.SetInsertPoint(llBlock);
 
 	for (auto stmt: func->body().statements())
@@ -271,7 +272,7 @@ void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 void LlvmCompiler::compileStmt(Block const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlock = LLBlock::Create(Context, "block", llFunc);
+	LLBlock* llBlock = createLlvmBlock("block", llFunc);
 	Builder.SetInsertPoint(llBlock);
 
 	for (auto s : stmt->statements())
@@ -286,9 +287,9 @@ void LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 void LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockThen = LLBlock::Create(Context, "if.then", llFunc);
-	LLBlock* llBlockElse = LLBlock::Create(Context, "if.else", llFunc);
-	LLBlock* llBlockEnd = LLBlock::Create(Context, "if.end", llFunc);
+	LLBlock* llBlockThen = createLlvmBlock("if.then", llFunc);
+	LLBlock* llBlockElse = createLlvmBlock("if.else", llFunc);
+	LLBlock* llBlockEnd = createLlvmBlock("if.end", llFunc);
 
 	LLValue* llCond = compileExp(&(stmt->condition()));
 	Builder.CreateCondBr(llCond, llBlockThen, llBlockElse);
@@ -314,9 +315,9 @@ void LlvmCompiler::compileStmt(IfStatement const* stmt) {
 void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockCond = LLBlock::Create(Context, "while.cond", llFunc);
-	LLBlock* llBlockBody = LLBlock::Create(Context, "while.body", llFunc);
-	LLBlock* llBlockEnd = LLBlock::Create(Context, "while.end", llFunc);
+	LLBlock* llBlockCond = createLlvmBlock("while.cond", llFunc);
+	LLBlock* llBlockBody = createLlvmBlock("while.body", llFunc);
+	LLBlock* llBlockEnd = createLlvmBlock("while.end", llFunc);
 
 	// store to the loop stack
 	LoopInfo llLoop {llBlockCond, llBlockEnd};
@@ -342,10 +343,10 @@ void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 void LlvmCompiler::compileStmt(ForStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockCond = LLBlock::Create(Context, "for.cond", llFunc);
-	LLBlock* llBlockLoop = LLBlock::Create(Context, "for.loop", llFunc);
-	LLBlock* llBlockBody = LLBlock::Create(Context, "for.body", llFunc);
-	LLBlock* llBlockEnd = LLBlock::Create(Context, "for.end", llFunc);
+	LLBlock* llBlockCond = createLlvmBlock("for.cond", llFunc);
+	LLBlock* llBlockLoop = createLlvmBlock("for.loop", llFunc);
+	LLBlock* llBlockBody = createLlvmBlock("for.body", llFunc);
+	LLBlock* llBlockEnd = createLlvmBlock("for.end", llFunc);
 
 	// store to the loop stack
 	LoopInfo llLoop {llBlockCond, llBlockEnd};
@@ -401,12 +402,23 @@ void LlvmCompiler::compileStmt(EmitStatement const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
-	auto vars = stmt->declarations();
-	string result = "";
-	if (vars.size() == 1)
-		compileLocalVarDecl(*(vars.at(0)), stmt->initialValue());
+	Expression const* initValue = stmt->initialValue();
+
+	if (initValue == nullptr) {
+		for (ASTPointer<VariableDeclaration> var : stmt->declarations())
+			compileLocalVarDecl(*var, nullptr);
+	}
+	else if (auto tupleValue = dynamic_cast<TupleExpression const*>(initValue)) {
+		int index = 0;
+		vector<ASTPointer<Expression>> elems= tupleValue->components();
+		for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
+			Expression &elem = *(elems.at(index));
+			compileLocalVarDecl(*var, &elem);
+			index++;
+		}
+	}
 	else
-		LogError("compileStmt: VariableDeclarationStatement: more than 1 var");
+		LogError("Compile VariableDeclarationStatement: unknown declaration");
 }
 
 void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
@@ -587,6 +599,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	FunctionCallAnnotation &annon = exp->annotation();
 	LLType* llType = compileType(annon.type);
 
+	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
 		LogDebug("compileExp: Normal FunctionCall");
 
@@ -600,6 +613,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 		return Builder.CreateCall(llFunc, llArgs);
 	}
 
+	// a call to a constructor of a struct
 	else if (annon.kind == FunctionCallKind::StructConstructorCall) {
 		vector<LLConstant*> llArgs;
 		for (auto arg : exp->arguments())
@@ -610,6 +624,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 			return llvm::ConstantStruct::get(llStructType, llArgs);
 	}
 
+	// a call to a type conversion
 	else if (annon.kind == FunctionCallKind::TypeConversion) {
 		LLValue* llArg = compileExpArgument((&(exp->arguments().at(0)))->get());
 
@@ -623,9 +638,9 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 			return Builder.CreateZExtOrTrunc(llArg, llType);
 	}
 
+	// invalid function call
 	else {
-		LogError("compileExp: FunctionCall: unknown FunctionCall type");
-		return nullptr;
+		LogError("FunctionCall: unknown FunctionCall type");
 	}
 }
 
@@ -703,18 +718,18 @@ LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 	return nullptr;
 }
 
-LLValue* LlvmCompiler::compileExp(Identifier const *exp) {
+LLValue* LlvmCompiler::compileExp(Identifier const* exp) {
 	// LLValue* llexp = findNamedValue(exp->name());
 	// return Builder.CreateLoad(llexp);
 	return findNamedValue(exp->name());
 }
 
-LLValue* LlvmCompiler::compileExp(ElementaryTypeNameExpression const *exp) {
+LLValue* LlvmCompiler::compileExp(ElementaryTypeNameExpression const* exp) {
 	LogError("compileExp: ElementaryTypeNameExpression: unhandled");
 	return nullptr;
 }
 
-LLValue* LlvmCompiler::compileExp(Literal const *exp) {
+LLValue* LlvmCompiler::compileExp(Literal const* exp) {
 	// Literal types can be one of the following:
 	// TrueLiteral, FalseLiteral, Number, StringLiteral, and CommentLiteral
 	string content = exp->value();
@@ -965,4 +980,10 @@ LLValue* LlvmCompiler::findNamedValue(string name) {
 	else if (MapGlobalVars.find(name) != MapGlobalVars.end())
 		return MapGlobalVars[name];
 	else return nullptr;
+}
+
+LLBlock* LlvmCompiler::createLlvmBlock(string name, LLFunction* func) {
+	name = "_" + name + "_" + to_string(IndexBlock);
+	IndexBlock++;
+	return LLBlock::Create(Context, name, func);
 }

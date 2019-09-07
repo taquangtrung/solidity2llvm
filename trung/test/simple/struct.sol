@@ -17,10 +17,12 @@ contract SimpleStruct {
     s = "B";
   }
 
-  function foo() public {
+  function foo() public returns (uint) {
     Foo memory m;
     m.value = 1;
     m.data = 2;
+    uint x = m.value;
+    return x;
   }
 
   function get() public view returns (uint) {

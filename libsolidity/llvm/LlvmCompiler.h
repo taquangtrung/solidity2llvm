@@ -118,6 +118,9 @@ class LlvmCompiler {
 	LLValue* compileExp(ElementaryTypeNameExpression const*);
 	LLValue* compileExp(Literal const*);
 
+	// special compilation
+	vector<LLValue*> compileTupleExp(TupleExpression const*);
+
 	// auxiliary LLVM functions
 	LLValue* compileExpArgument(Expression const*);
 
@@ -155,10 +158,10 @@ private:
 
 	// global vars for module
 	map<string, LLValue*> MapGlobalVars;
-	set<LLValue*> SetGlobalVars;
 	map<string, LLStructType*> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
-	map<TupleType const*, LLType*> MapTupleTypes;
+	map<string, LLType*> MapTupleTypes;
+	set<LLValue*> SetGlobalVars;
 
 	// global vars for function
 	map<string, LLValue*> MapLocalVars;

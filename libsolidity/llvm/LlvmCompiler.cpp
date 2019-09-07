@@ -473,31 +473,57 @@ LLValue* LlvmCompiler::compileExp(Conditional const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
-	LLValue* llLhs = compileExp(&(exp->leftHandSide()));
-	LLValue* llRhs = compileExp(&(exp->rightHandSide()));
-	return Builder.CreateStore(llRhs, llLhs);
+  Expression const& lhs = exp->leftHandSide();
+	Expression const& rhs = exp->rightHandSide();
+
+	// compile tuple differently
+	if (auto tupleLhs = dynamic_cast<TupleExpression const*>(&lhs)) {
+		if (auto tupleRhs = dynamic_cast<TupleExpression const*>(&rhs)) {
+			int index = 0;
+			vector<ASTPointer<Expression>> lhsComponents = tupleLhs->components();
+			for (ASTPointer<Expression> elemRhs : tupleRhs->components()) {
+				LLValue* llElemRhs = compileExp(&(*elemRhs));
+				ASTPointer<Expression> elemLhs = lhsComponents.at(index);
+				if (elemLhs != nullptr) {
+					LLValue* llElemLhs = compileExp(&(*elemLhs));
+					Builder.CreateStore(llElemRhs, llElemLhs);
+				}
+				index++;
+			}
+		}
+	}
+	else {
+		LLValue* llLhs = compileExp(&(exp->leftHandSide()));
+		LLValue* llRhs = compileExp(&(exp->rightHandSide()));
+		return Builder.CreateStore(llRhs, llLhs);
+	}
+
+	return nullptr;
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
+	LogError("Compile TupleExpression: not expect here");
+	return nullptr;
+
 	// translate a tuple expression to a struct
-	TypePointer expType = exp->annotation().type;
-	LLType* llExpType = compileType(expType);
-	LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
+	// TypePointer expType = exp->annotation().type;
+	// LLType* llExpType = compileType(expType);
+	// LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
 
-  // store element value
-	int index = 0;
-	for (ASTPointer<Expression> elem : exp->components()) {
-		LLValue* llElemValue = compileExp(&(*elem));
-		vector<LLValue*> valueIndex;
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
-		LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
-		Builder.CreateStore(llElemValue, llElemAddr);
-		index++;
-	}
+  // // store element value
+	// int index = 0;
+	// for (ASTPointer<Expression> elem : exp->components()) {
+	// 	LLValue* llElemValue = compileExp(&(*elem));
+	// 	vector<LLValue*> valueIndex;
+	// 	valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+	// 	valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+	// 	LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
+	// 	Builder.CreateStore(llElemValue, llElemAddr);
+	// 	index++;
+	// }
 
-	// cast to i8* type
-	return Builder.CreateBitCast(llBaseExp, LLType::getInt8PtrTy(Context));
+	// // cast to i8* type
+	// return Builder.CreateBitCast(llBaseExp, LLType::getInt8PtrTy(Context));
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -656,9 +682,8 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	}
 
 	// invalid function call
-	else {
-		LogError("FunctionCall: unknown FunctionCall type");
-	}
+  LogError("FunctionCall: unknown FunctionCall type");
+	return nullptr;
 }
 
 LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
@@ -776,6 +801,23 @@ LLValue* LlvmCompiler::compileExp(Literal const* exp) {
 		return nullptr;
 	}
 }
+
+
+/********************************************************
+ * Compile special expressions
+ ********************************************************/
+
+vector<LLValue*> LlvmCompiler::compileTupleExp(TupleExpression const* exp) {
+	vector<LLValue*> llElems;
+
+	for (ASTPointer<Expression> elem : exp->components()) {
+		LLValue* llElem = compileExp(&(*elem));
+		llElems.push_back(llElem);
+	}
+
+	return llElems;
+}
+
 
 /********************************************************
  *                Auxiliary LLVM functions
@@ -901,16 +943,17 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 
 	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
 		// create a StructType to represent the TuplType
+		string tupleTypeName = tupleType->canonicalName();
+		LLType* llType = MapTupleTypes[tupleTypeName];
 
-		LLType* llType = MapTupleTypes[tupleType];
 		if (llType != nullptr)
 			return llType;
 		else {
 			vector<LLType*> llElems;
 			for (Type const* elem : tupleType->components())
 				llElems.push_back(compileType(elem));
-			llType = LLStructType::create(Context, llElems, "tuple");
-			MapTupleTypes[tupleType] = llType;
+			llType = LLStructType::create(Context, llElems);
+			MapTupleTypes[tupleTypeName] = llType;
 			return llType;
 		}
 	}

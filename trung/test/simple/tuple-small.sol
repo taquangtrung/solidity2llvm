@@ -5,5 +5,8 @@ contract C {
     int a;
     (int x, int y) = (1,2);
     (x, y) = (y, x);
+    (x, ) = (2, 3);
+    /* (int z, int t) = (x, x); */
+    /* (z, t) = (y, y); */
   }
 }

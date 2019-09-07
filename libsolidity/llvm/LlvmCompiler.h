@@ -154,14 +154,15 @@ private:
 	stack<LoopInfo> LoopStack;
 
 	// global vars for module
-	map<string, LLValue *> MapGlobalVars;
-	set<LLValue *> SetGlobalVars;
-	map<string, LLStructType *> MapStructTypes;
+	map<string, LLValue*> MapGlobalVars;
+	set<LLValue*> SetGlobalVars;
+	map<string, LLStructType*> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
+	map<TupleType const*, LLType*> MapTupleTypes;
 
 	// global vars for function
-	map<string, LLValue *> MapLocalVars;
-	set<LLValue *> SetLocalVars;
+	map<string, LLValue*> MapLocalVars;
+	set<LLValue*> SetLocalVars;
 	int IndexBlock;
 };
 

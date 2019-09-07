@@ -54,6 +54,7 @@ string LlvmCompiler::llvmString(ContractDefinition const* contract,
 void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 	// prepare environment
 	MapGlobalVars.clear();
+	MapTupleTypes.clear();
 
 	// make contract
 	ContractName = contract->name();
@@ -410,7 +411,7 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	}
 	else if (auto tupleValue = dynamic_cast<TupleExpression const*>(initValue)) {
 		int index = 0;
-		vector<ASTPointer<Expression>> elems= tupleValue->components();
+		vector<ASTPointer<Expression>> elems = tupleValue->components();
 		for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
 			Expression &elem = *(elems.at(index));
 			compileLocalVarDecl(*var, &elem);
@@ -478,10 +479,25 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
-	// exp->annotation().type;
+	// translate a tuple expression to a struct
+	TypePointer expType = exp->annotation().type;
+	LLType* llExpType = compileType(expType);
+	LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
 
-	LogError("compileExp: Tupl eExpression: unhandled");
-	return nullptr;
+  // store element value
+	int index = 0;
+	for (ASTPointer<Expression> elem : exp->components()) {
+		LLValue* llElemValue = compileExp(&(*elem));
+		vector<LLValue*> valueIndex;
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+		LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
+		Builder.CreateStore(llElemValue, llElemAddr);
+		index++;
+	}
+
+	// cast to i8* type
+	return Builder.CreateBitCast(llBaseExp, LLType::getInt8PtrTy(Context));
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -675,22 +691,22 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 		StructDefinition const& structDef = structType->structDefinition();
 
 		string memberName = exp->memberName();
-		int memIndex = 0;
-		for (auto var: structDef.members()) {
+		int index = 0;
+		for (auto var : structDef.members()) {
 			if (var->name() == memberName) {
 				llMemType = compileType(var->type());
 				break;
 			}
-			memIndex++;
+			index++;
 		}
 
-		vector<LLValue *> IdxList;
-		IdxList.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-		IdxList.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), memIndex));
+		vector<LLValue*> valueIndex;
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
 
 		LogDebug("LL Mem Type: ", llMemType);
 
-		return Builder.CreateGEP(llBaseExp, IdxList);
+		return Builder.CreateGEP(llBaseExp, valueIndex);
 	}
 
 	LogError("compileExp: MemberAccess: unknown exp: ", *exp);
@@ -885,10 +901,18 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 
 	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
 		// create a StructType to represent the TuplType
-		vector<LLType*> llElems;
-		for (Type const* elem : tupleType->components())
-			llElems.push_back(compileType(elem));
-		return LLStructType::create(Context, llElems);
+
+		LLType* llType = MapTupleTypes[tupleType];
+		if (llType != nullptr)
+			return llType;
+		else {
+			vector<LLType*> llElems;
+			for (Type const* elem : tupleType->components())
+				llElems.push_back(compileType(elem));
+			llType = LLStructType::create(Context, llElems, "tuple");
+			MapTupleTypes[tupleType] = llType;
+			return llType;
+		}
 	}
 
 	else if (auto funcType = dynamic_cast<FunctionType const*>(type)) {

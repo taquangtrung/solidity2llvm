@@ -478,8 +478,9 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
-	// TODO
-	LogError("compileExp: TupleExpression: unhandled");
+	// exp->annotation().type;
+
+	LogError("compileExp: Tupl eExpression: unhandled");
 	return nullptr;
 }
 
@@ -837,86 +838,88 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 	if (type == nullptr)
 		LogError("compileType: input is null type");
 
-	else if (auto t = dynamic_cast<IntegerType const*>(type)) {
-		return LLIntegerType::get(Context, t->numBits());
+	else if (auto intType = dynamic_cast<IntegerType const*>(type)) {
+		return LLIntegerType::get(Context, intType->numBits());
 	}
 
-	else if (auto t = dynamic_cast<FixedPointType const*>(type)) {
+	else if (auto fixpointType = dynamic_cast<FixedPointType const*>(type)) {
 		LogError("FixedPointType");
 	}
 
-	else if (auto t = dynamic_cast<RationalNumberType const*>(type)) {
+	else if (auto ratnumType = dynamic_cast<RationalNumberType const*>(type)) {
 		LogError("RationalNumberType");
 
 	}
-	else if (auto t = dynamic_cast<StringLiteralType const*>(type)) {
+	else if (auto strType = dynamic_cast<StringLiteralType const*>(type)) {
 		LogError("StringLiteralType");
 	}
 
-	else if (auto t =  dynamic_cast<BoolType const*>(type)) {
+	else if (auto boolType =  dynamic_cast<BoolType const*>(type)) {
 		return LLIntegerType::get(Context, 8);
 	}
 
-	else if (auto t = dynamic_cast<StructType const*>(type)) {
-		return MapStructTypes[t->canonicalName()];
+	else if (auto structType = dynamic_cast<StructType const*>(type)) {
+		return MapStructTypes[structType->canonicalName()];
 	}
 
-	else if (auto t = dynamic_cast<FixedBytesType const*>(type)) {
-		uint64_t size = t->numBytes();
+	else if (auto fixbyteType = dynamic_cast<FixedBytesType const*>(type)) {
+		uint64_t size = fixbyteType->numBytes();
 		LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
 		return LLArrayType::get(llBaseType, size);
 	}
 
-	else if (auto t = dynamic_cast<ArrayType const*>(type)) {
-		uint64_t size = (uint64_t)t->length();  // converting u256 to uint64
-		LLType* llBaseType = compileType(t->baseType());
+	else if (auto arrayType = dynamic_cast<ArrayType const*>(type)) {
+		uint64_t size = (uint64_t)arrayType->length();  // converting u256 to uint64
+		LLType* llBaseType = compileType(arrayType->baseType());
 		return LLArrayType::get(llBaseType, size);
 	}
 
-	else if (auto t = dynamic_cast<ContractType const*>(type)) {
+	else if (auto contractType = dynamic_cast<ContractType const*>(type)) {
 		LogError("ContractType");
 	}
 
-	else if (auto t = dynamic_cast<EnumType const*>(type)) {
+	else if (auto enumType = dynamic_cast<EnumType const*>(type)) {
 		// compile an enum type to an integer type
 		return LLIntegerType::get(Context, 64);
 	}
 
-	else if (auto t = dynamic_cast<TupleType const*>(type)) {
-		vector<TypePointer> components = t->components();
-		cout << "TupleType: num of components: " << components.size();
-		LogError("TupleType");
+	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
+		// create a StructType to represent the TuplType
+		vector<LLType*> llElems;
+		for (Type const* elem : tupleType->components())
+			llElems.push_back(compileType(elem));
+		return LLStructType::create(Context, llElems);
 	}
 
-	else if (auto t = dynamic_cast<FunctionType const*>(type)) {
+	else if (auto funcType = dynamic_cast<FunctionType const*>(type)) {
 		LogError("FunctionType");
 	}
 
-	else if (auto t = dynamic_cast<MappingType const*>(type)) {
+	else if (auto mapType = dynamic_cast<MappingType const*>(type)) {
 		LogError("MappingType");
 	}
 
-	else if (auto t = dynamic_cast<TypeType const*>(type)) {
+	else if (auto typeType = dynamic_cast<TypeType const*>(type)) {
 		LogError("TypeType");
 	}
 
-	else if (auto t = dynamic_cast<ModifierType const*>(type)) {
+	else if (auto modifierType = dynamic_cast<ModifierType const*>(type)) {
 		LogError("ModifierType");
 	}
 
-	else if (auto t = dynamic_cast<ModuleType const*>(type)) {
+	else if (auto moduleType = dynamic_cast<ModuleType const*>(type)) {
 		LogError("ModuleType");
 	}
 
-	else if (auto t = dynamic_cast<MagicType const*>(type)) {
+	else if (auto magicType = dynamic_cast<MagicType const*>(type)) {
 		LogError("MagicType");
 	}
 
-	else if (auto t = dynamic_cast<InaccessibleDynamicType const*>(type)) {
+	else if (auto iadType = dynamic_cast<InaccessibleDynamicType const*>(type)) {
 		LogError("InaccessibleDynamicType");
 	}
 
-	else if (auto t = dynamic_cast<AddressType const*>(type)) {
+	else if (auto addrType = dynamic_cast<AddressType const*>(type)) {
 		// Soldity's address is 20 bytes
 		auto byteType = LLIntegerType::get(Context, 8);
 		return LLArrayType::get(byteType, 20);

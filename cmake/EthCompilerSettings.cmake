@@ -29,8 +29,6 @@ if (("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR ("${CMAKE_CXX_COMPILER_ID}" MA
 	# enabled by -Wall.   Finally, treat at warnings-as-errors, which forces developers
 	# to fix warnings as they arise, so they don't accumulate "to be fixed later".
 
-	add_compile_options(-Wno-everything)
-
 	# add_compile_options(-Wall)
 	# add_compile_options(-Wextra)
 	# add_compile_options(-Werror)

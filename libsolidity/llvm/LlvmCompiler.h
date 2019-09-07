@@ -122,7 +122,7 @@ class LlvmCompiler {
 	vector<LLValue*> compileTupleExp(TupleExpression const*);
 
 	// auxiliary LLVM functions
-	LLValue* compileExpArgument(Expression const*);
+	LLValue* compileRhsExp(Expression const*);
 
 	// compile types
 	LLType* compileTypeName(TypeName const*);

@@ -479,22 +479,28 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 	// compile tuple differently
 	if (auto tupleLhs = dynamic_cast<TupleExpression const*>(&lhs)) {
 		if (auto tupleRhs = dynamic_cast<TupleExpression const*>(&rhs)) {
-			int index = 0;
-			vector<ASTPointer<Expression>> lhsComponents = tupleLhs->components();
+			vector<LLValue*> llRhsElems;
 			for (ASTPointer<Expression> elemRhs : tupleRhs->components()) {
-				LLValue* llElemRhs = compileExp(&(*elemRhs));
-				ASTPointer<Expression> elemLhs = lhsComponents.at(index);
+				llRhsElems.push_back(compileRhsExp(&(*elemRhs)));
+			}
+
+			int index = 0;
+			for (ASTPointer<Expression> elemLhs : tupleLhs->components()) {
 				if (elemLhs != nullptr) {
+					LLValue* llElemRhs = llRhsElems.at(index);
 					LLValue* llElemLhs = compileExp(&(*elemLhs));
 					Builder.CreateStore(llElemRhs, llElemLhs);
 				}
 				index++;
 			}
 		}
+		else if (auto tupleRhs = dynamic_cast<FunctionCall const*>(&rhs)) {
+			// FIXME: need to handle function call that return tuple
+		}
 	}
 	else {
 		LLValue* llLhs = compileExp(&(exp->leftHandSide()));
-		LLValue* llRhs = compileExp(&(exp->rightHandSide()));
+		LLValue* llRhs = compileRhsExp(&(exp->rightHandSide()));
 		return Builder.CreateStore(llRhs, llLhs);
 	}
 
@@ -669,7 +675,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 	// a call to a type conversion
 	else if (annon.kind == FunctionCallKind::TypeConversion) {
-		LLValue* llArg = compileExpArgument((&(exp->arguments().at(0)))->get());
+		LLValue* llArg = compileRhsExp((&(exp->arguments().at(0)))->get());
 
 		if (auto t = dynamic_cast<IntegerType const*>(annon.type)) {
 			if (t->isSigned())
@@ -823,7 +829,7 @@ vector<LLValue*> LlvmCompiler::compileTupleExp(TupleExpression const* exp) {
  *                Auxiliary LLVM functions
  ********************************************************/
 
-LLValue* LlvmCompiler::compileExpArgument(Expression const* exp) {
+LLValue* LlvmCompiler::compileRhsExp(Expression const* exp) {
 	LLValue* llArg = compileExp(exp);
 
 	// lookup local vars first

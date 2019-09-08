@@ -140,6 +140,8 @@ class LlvmCompiler {
 	string stringOf(LLValue*);
 	string stringOf(LLType*);
 	LLValue* findNamedValue(string);
+	string getFunctionName(FunctionCall const*);
+	vector<LLValue*> makeIndexGEP(list<int>);
 
 private:
 	const ContractDefinition* CompilingContract;

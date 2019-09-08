@@ -419,9 +419,7 @@ void LlvmCompiler::compileStmt(Return const* stmt) {
 		int index = 0;
 		for (ASTPointer<Expression> elem : tupleExp->components()) {
 			LLValue* llElemValue = compileExp(&(*elem));
-			vector<LLValue*> valueIndex;
-			valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-			valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+			vector<LLValue*> valueIndex = makeIndexGEP({0, index});
 			LLValue* llElemAddr = Builder.CreateGEP(llReturnExp, valueIndex);
 			Builder.CreateStore(llElemValue, llElemAddr);
 			index++;
@@ -475,9 +473,6 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
-
-	LogDebug("EXP: ", *exp);
-
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
 		return compileExp(e);
 	}
@@ -541,8 +536,30 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 				index++;
 			}
 		}
-		else if (auto tupleRhs = dynamic_cast<FunctionCall const*>(&rhs)) {
-			// FIXME: need to handle function call that return tuple
+		else if (dynamic_cast<FunctionCall const*>(&rhs)) {
+			// LLValue* llRhs =  compileExp(&rhs);
+
+			// int index = 0;
+			// for (ASTPointer<Expression> elemLhs : tupleLhs->components()) {
+			// 	if (elemLhs != nullptr) {
+			// 		LLValue* llElemLhs = compileExp(&(*elemLhs));
+
+			// 		LLValue* llElemValue = compileExp(&(*elem));
+			// 		vector<LLValue*> valueIndex;
+			// 		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+			// 		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+			// 		LLValue* llElemAddr = Builder.CreateGEP(llReturnExp, valueIndex);
+			// 		Builder.CreateStore(llElemValue, llElemAddr);
+			// 		index++;
+
+			// 		Builder.CreateStore(llElemRhs, llElemLhs);
+			// 	}
+			// 	index++;
+			// }
+
+			// string funcName = getFunctionName(fcallRhs);
+			// fcallRhs->annotation().FunctionCallAnnotation::
+			// // FIXME: need to handle function call that return tuple
 			LogError("Handle FunctionCall in Assignment");
 		}
 	}
@@ -676,17 +693,13 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
-	Expression const& baseExp = exp->expression();
 	FunctionCallAnnotation &annon = exp->annotation();
 	LLType* llType = compileType(annon.type);
 
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
-		string funcName;
-		if (auto idExp = dynamic_cast<Identifier const*>(&baseExp))
-			funcName = idExp->name();
-		else
-			LogDebug("Compile FunctionCall: Unknown Function Name");
+		string funcName = getFunctionName(exp);
+  	LogDebug("Compile FunctionCall: Unknown Function Name");
 		LLFunction *llFunc = CurrentModule->getFunction(funcName);
 
 		vector<LLValue*> llArgs;
@@ -765,12 +778,7 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 			index++;
 		}
 
-		vector<LLValue*> valueIndex;
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
-
-		LogDebug("LL Mem Type: ", llMemType);
-
+		vector<LLValue*> valueIndex = makeIndexGEP({0, index});
 		return Builder.CreateGEP(llBaseExp, valueIndex);
 	}
 
@@ -1095,4 +1103,19 @@ LLValue* LlvmCompiler::findNamedValue(string name) {
 	else if (MapGlobalVars.find(name) != MapGlobalVars.end())
 		return MapGlobalVars[name];
 	else return nullptr;
+}
+
+string LlvmCompiler::getFunctionName(FunctionCall const* exp) {
+	Expression const& baseExp = exp->expression();
+	if (auto idExp = dynamic_cast<Identifier const*>(&baseExp))
+		return idExp->name();
+	else
+		return nullptr;
+}
+
+vector<LLValue*> LlvmCompiler::makeIndexGEP(list<int> indices) {
+	vector<LLValue*> llIndices;
+	for (auto index : indices) {
+		llIndices.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+	}
 }

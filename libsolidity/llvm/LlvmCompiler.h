@@ -160,7 +160,7 @@ private:
 	map<string, LLValue*> MapGlobalVars;
 	map<string, LLStructType*> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
-	map<string, LLType*> MapTupleTypes;
+	map<string, LLType*> MapFuncReturnType;
 	set<LLValue*> SetGlobalVars;
 
 	// global vars for function

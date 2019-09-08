@@ -54,11 +54,12 @@ string LlvmCompiler::llvmString(ContractDefinition const* contract,
 void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 	// prepare environment
 	MapGlobalVars.clear();
-	MapTupleTypes.clear();
+	MapFuncReturnType.clear();
 
 	// make contract
 	ContractName = contract->name();
 	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
+	Module->setSourceFileName(contract->sourceUnitName());
 
 	// structs and enums
 	for (StructDefinition const* d: contract->definedStructs())
@@ -171,24 +172,28 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
-	auto returnTypes = funcType->returnParameterTypes();
-	LLType* llRetType;
-	if (returnTypes.size() == 0)
-		llRetType = LLType::getVoidTy(Context);
-	else if (returnTypes.size() == 1)
-		llRetType = compileType(returnTypes.at(0));
-	else {
-		// TODO: handle returned type tuple
-		LogError("CompileFunc: unknown returned function type");
+	vector<TypePointer> returnTypes = funcType->returnParameterTypes();
+	LLType* llReturnType;
+	switch (returnTypes.size()) {
+	case 0:
+		llReturnType = LLType::getVoidTy(Context);
+		break;
+	case 1:
+		llReturnType = compileType(returnTypes.at(0));
+		break;
+	default:
+		// Create a struct type to capture this returned type
+		vector<LLType*> llReturnElemTypes;
+		for (Type const* type : returnTypes)
+			llReturnElemTypes.push_back(compileType(type));
+		llReturnType = LLStructType::create(Context, llReturnElemTypes);
+		MapFuncReturnType[funcName] = llReturnType;
 	}
 
-	// parameters
 	vector<LLType*> llParamTypes;
-	auto params = func->parameters();
-	for (auto p: params)
+	for (ASTPointer<VariableDeclaration> p: func->parameters())
 		llParamTypes.push_back(compileType(p->type()));
-
-	LLFunctionType* llFType = LLFunctionType::get(llRetType, llParamTypes, false);
+	LLFunctionType* llFType = LLFunctionType::get(llReturnType, llParamTypes, false);
 
 	// create function
 	LLFunction *llFunc = LLFunction::Create(llFType, LLFunction::CommonLinkage,
@@ -197,7 +202,7 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// set names for parameters and also record it to local names
 	int index = 0;
 	for (auto &arg : llFunc->args()) {
-		string paramName = params.at(index)->name();
+		string paramName = func->parameters().at(index)->name();
 		arg.setName(paramName);
 		MapLocalVars[paramName] = &arg;
 		index++;
@@ -390,6 +395,7 @@ void LlvmCompiler::compileStmt(Break const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(Return const* stmt) {
+	LogError("Handle Return Statement");
 	Builder.CreateRet(compileExp(stmt->expression()));
 }
 
@@ -496,6 +502,7 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 		}
 		else if (auto tupleRhs = dynamic_cast<FunctionCall const*>(&rhs)) {
 			// FIXME: need to handle function call that return tuple
+			LogError("Handle FunctionCall in Assignment");
 		}
 	}
 	else {
@@ -510,26 +517,6 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
 	LogError("Compile TupleExpression: not expect here");
 	return nullptr;
-
-	// translate a tuple expression to a struct
-	// TypePointer expType = exp->annotation().type;
-	// LLType* llExpType = compileType(expType);
-	// LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
-
-  // // store element value
-	// int index = 0;
-	// for (ASTPointer<Expression> elem : exp->components()) {
-	// 	LLValue* llElemValue = compileExp(&(*elem));
-	// 	vector<LLValue*> valueIndex;
-	// 	valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-	// 	valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
-	// 	LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
-	// 	Builder.CreateStore(llElemValue, llElemAddr);
-	// 	index++;
-	// }
-
-	// // cast to i8* type
-	// return Builder.CreateBitCast(llBaseExp, LLType::getInt8PtrTy(Context));
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -948,20 +935,9 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 	}
 
 	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
-		// create a StructType to represent the TuplType
-		string tupleTypeName = tupleType->canonicalName();
-		LLType* llType = MapTupleTypes[tupleTypeName];
-
-		if (llType != nullptr)
-			return llType;
-		else {
-			vector<LLType*> llElems;
-			for (Type const* elem : tupleType->components())
-				llElems.push_back(compileType(elem));
-			llType = LLStructType::create(Context, llElems);
-			MapTupleTypes[tupleTypeName] = llType;
-			return llType;
-		}
+		// tuple type is handled differently
+		LogError("CompileType: do not expect TupleType here");
+		return nullptr;
 	}
 
 	else if (auto funcType = dynamic_cast<FunctionType const*>(type)) {

@@ -83,9 +83,6 @@ class LlvmCompiler {
 	LLValue* compileLocalVarDecl(VariableDeclaration&, Expression const*);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
 
-	// block
-	LLBlock* createLlvmBlock(string, LLFunction*);
-
 	// compile statements
 	void compileStmt(Statement const& stmt);
 	void compileStmt(InlineAssembly const* stmt);
@@ -151,7 +148,7 @@ private:
 private:
 	LLContext Context;
 	llvm::IRBuilder<> Builder;
-	unique_ptr<LLModule> Module;
+	unique_ptr<LLModule> CurrentModule;
 	string ContractName;
 	unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
 	stack<LoopInfo> LoopStack;
@@ -160,13 +157,12 @@ private:
 	map<string, LLValue*> MapGlobalVars;
 	map<string, LLStructType*> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
-	map<string, LLType*> MapFuncReturnType;
+	map<string, LLType*> MapTupleType;
 	set<LLValue*> SetGlobalVars;
 
 	// global vars for function
 	map<string, LLValue*> MapLocalVars;
 	set<LLValue*> SetLocalVars;
-	int IndexBlock;
 };
 
 } // end of namespace solidity

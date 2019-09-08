@@ -32,15 +32,15 @@ string LlvmCompiler::llvmString(ContractDefinition const* contract,
 	compileContract(contract);
 
 	// validate module
-	llvm::verifyModule(*Module);
+	llvm::verifyModule(*CurrentModule);
 
 	cout << endl << "==========================" << endl ;
 	cout << "** Output LLVM IR: " << endl << endl;
-	Module->print(llvm::outs(), nullptr);
+	CurrentModule->print(llvm::outs(), nullptr);
 
 	std::error_code EC;
 	llvm::raw_fd_ostream OS("module", EC, llvm::sys::fs::F_None);
-	llvm::WriteBitcodeToFile(&(*Module), OS);
+	llvm::WriteBitcodeToFile(&(*CurrentModule), OS);
 	OS.flush();
 
 	return "";
@@ -54,12 +54,12 @@ string LlvmCompiler::llvmString(ContractDefinition const* contract,
 void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 	// prepare environment
 	MapGlobalVars.clear();
-	MapFuncReturnType.clear();
+	MapTupleType.clear();
 
 	// make contract
 	ContractName = contract->name();
-	Module = llvm::make_unique<llvm::Module>(ContractName, Context);
-	Module->setSourceFileName(contract->sourceUnitName());
+	CurrentModule = llvm::make_unique<llvm::Module>(ContractName, Context);
+	CurrentModule->setSourceFileName(contract->sourceUnitName());
 
 	// structs and enums
 	for (StructDefinition const* d: contract->definedStructs())
@@ -68,7 +68,8 @@ void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 		compileEnumDecl(d);
 
 	// perform optimization passes
-	FunctionPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(Module.get());
+	FunctionPM =
+		llvm::make_unique<llvm::legacy::FunctionPassManager>(CurrentModule.get());
 
 	// Promote allocas to registers.
 	// FunctionPM->add(llvm::createPromoteMemoryToRegisterPass());
@@ -136,7 +137,7 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(VariableDeclaration const* var) {
 	if (Expression* v = var->value().get())
 		llInitValue = llvm::dyn_cast<LLConstant>(compileExp(v));
 
-	auto llVar = new LLGlobalVar(*Module, llType, false,
+	auto llVar = new LLGlobalVar(*CurrentModule, llType, false,
 															 LLGlobalVar::CommonLinkage,
 															 llInitValue, name);
 
@@ -165,7 +166,6 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// prepare environment
 	MapLocalVars.clear();
-	IndexBlock = 0;
 
 	// function name
 	string funcName = func->name();
@@ -183,11 +183,19 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 		break;
 	default:
 		// Create a struct type to capture this returned type
-		vector<LLType*> llReturnElemTypes;
+		string tupleName = "tuple";
 		for (Type const* type : returnTypes)
-			llReturnElemTypes.push_back(compileType(type));
-		llReturnType = LLStructType::create(Context, llReturnElemTypes);
-		MapFuncReturnType[funcName] = llReturnType;
+			tupleName = tupleName + "." + type->canonicalName();
+
+		llReturnType = MapTupleType[tupleName];
+
+		if (llReturnType == nullptr) {
+			vector<LLType*> llReturnElemTypes;
+			for (Type const* type : returnTypes)
+				llReturnElemTypes.push_back(compileType(type));
+			llReturnType = LLStructType::create(Context, llReturnElemTypes, tupleName);
+			MapTupleType[tupleName] = llReturnType;
+		}
 	}
 
 	vector<LLType*> llParamTypes;
@@ -197,7 +205,7 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 
 	// create function
 	LLFunction *llFunc = LLFunction::Create(llFType, LLFunction::CommonLinkage,
-																					funcName, Module.get());
+																					funcName, CurrentModule.get());
 
 	// set names for parameters and also record it to local names
 	int index = 0;
@@ -209,7 +217,7 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	}
 
 	// translate new function
-	LLBlock *llBlock = createLlvmBlock("entry", llFunc);
+	LLBlock *llBlock = LLBlock::Create(Context, ".entry", llFunc);
 	Builder.SetInsertPoint(llBlock);
 
 	for (auto stmt: func->body().statements())
@@ -278,7 +286,7 @@ void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 void LlvmCompiler::compileStmt(Block const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlock = createLlvmBlock("block", llFunc);
+	LLBlock* llBlock = LLBlock::Create(Context, ".block", llFunc);
 	Builder.SetInsertPoint(llBlock);
 
 	for (auto s : stmt->statements())
@@ -293,9 +301,9 @@ void LlvmCompiler::compileStmt(PlaceholderStatement const* stmt) {
 void LlvmCompiler::compileStmt(IfStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockThen = createLlvmBlock("if.then", llFunc);
-	LLBlock* llBlockElse = createLlvmBlock("if.else", llFunc);
-	LLBlock* llBlockEnd = createLlvmBlock("if.end", llFunc);
+	LLBlock* llBlockThen = LLBlock::Create(Context, ".if.then", llFunc);
+	LLBlock* llBlockElse = LLBlock::Create(Context, ".if.else", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, ".if.end", llFunc);
 
 	LLValue* llCond = compileExp(&(stmt->condition()));
 	Builder.CreateCondBr(llCond, llBlockThen, llBlockElse);
@@ -321,9 +329,9 @@ void LlvmCompiler::compileStmt(IfStatement const* stmt) {
 void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockCond = createLlvmBlock("while.cond", llFunc);
-	LLBlock* llBlockBody = createLlvmBlock("while.body", llFunc);
-	LLBlock* llBlockEnd = createLlvmBlock("while.end", llFunc);
+	LLBlock* llBlockCond = LLBlock::Create(Context, ".while.cond", llFunc);
+	LLBlock* llBlockBody = LLBlock::Create(Context, ".while.body", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, ".while.end", llFunc);
 
 	// store to the loop stack
 	LoopInfo llLoop {llBlockCond, llBlockEnd};
@@ -349,10 +357,10 @@ void LlvmCompiler::compileStmt(WhileStatement const* stmt) {
 void LlvmCompiler::compileStmt(ForStatement const* stmt) {
 	LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
 
-	LLBlock* llBlockCond = createLlvmBlock("for.cond", llFunc);
-	LLBlock* llBlockLoop = createLlvmBlock("for.loop", llFunc);
-	LLBlock* llBlockBody = createLlvmBlock("for.body", llFunc);
-	LLBlock* llBlockEnd = createLlvmBlock("for.end", llFunc);
+	LLBlock* llBlockCond = LLBlock::Create(Context, ".for.cond", llFunc);
+	LLBlock* llBlockLoop = LLBlock::Create(Context, ".for.loop", llFunc);
+	LLBlock* llBlockBody = LLBlock::Create(Context, ".for.body", llFunc);
+	LLBlock* llBlockEnd = LLBlock::Create(Context, ".for.end", llFunc);
 
 	// store to the loop stack
 	LoopInfo llLoop {llBlockCond, llBlockEnd};
@@ -397,9 +405,29 @@ void LlvmCompiler::compileStmt(Break const* stmt) {
 void LlvmCompiler::compileStmt(Return const* stmt) {
 	Expression const* returnExp = stmt->expression();
 
-	if (auto tupleValue = dynamic_cast<TupleExpression const*>(returnExp)) {
-		// when returning a tuple expression, use a struct to capture this result
+	if (auto tupleExp = dynamic_cast<TupleExpression const*>(returnExp)) {
+		// return a tuple expression
+		ReturnAnnotation& annot = stmt->annotation();
+		ParameterList const* returnParams = annot.functionReturnParameters;
+		string tupleName = "tuple";
+		for (ASTPointer<VariableDeclaration> var : returnParams->parameters())
+			tupleName = tupleName + "." + var->type()->canonicalName();
 
+		LLType* llReturnType = MapTupleType[tupleName];
+		LLValue* llReturnExp = Builder.CreateAlloca(llReturnType);
+
+		int index = 0;
+		for (ASTPointer<Expression> elem : tupleExp->components()) {
+			LLValue* llElemValue = compileExp(&(*elem));
+			vector<LLValue*> valueIndex;
+			valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+			valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+			LLValue* llElemAddr = Builder.CreateGEP(llReturnExp, valueIndex);
+			Builder.CreateStore(llElemValue, llElemAddr);
+			index++;
+		}
+
+		Builder.CreateRet(llReturnExp);
 	}
 	else {
 		// return a normal expression
@@ -447,6 +475,9 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
+
+	LogDebug("EXP: ", *exp);
+
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
 		return compileExp(e);
 	}
@@ -525,22 +556,11 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
-	// translate a tuple expression to a struct
-	TypePointer expType = exp->annotation().type;
-	LLType* llExpType = compileType(expType);
-	LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
-
-	// store element value
-	int index = 0;
-	for (ASTPointer<Expression> elem : exp->components()) {
-		LLValue* llElemValue = compileExp(&(*elem));
-		vector<LLValue*> valueIndex;
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
-		LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
-		Builder.CreateStore(llElemValue, llElemAddr);
-		index++;
-	}
+	// tuples are handled directly at assignment, function call, or return
+	LogError("Compile TupleExpression: not expecting tuple!\n"
+					 "(Tuples are handled directly at assignment,"
+					 " function call, or return.)");
+	return nullptr;
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -667,7 +687,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 			funcName = idExp->name();
 		else
 			LogDebug("Compile FunctionCall: Unknown Function Name");
-		LLFunction *llFunc = Module->getFunction(funcName);
+		LLFunction *llFunc = CurrentModule->getFunction(funcName);
 
 		vector<LLValue*> llArgs;
 		for (auto arg : exp->arguments())
@@ -920,13 +940,17 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 		return LLIntegerType::get(Context, intType->numBits());
 	}
 
-	else if (auto fixpointType = dynamic_cast<FixedPointType const*>(type)) {
+	else if (auto fpType = dynamic_cast<FixedPointType const*>(type)) {
 		LogError("FixedPointType");
 	}
 
-	else if (auto ratnumType = dynamic_cast<RationalNumberType const*>(type)) {
-		LogError("RationalNumberType");
-
+	else if (auto rnType = dynamic_cast<RationalNumberType const*>(type)) {
+		if (rnType->isFractional()) {
+			LogError("RationalNumberType: handle fractional");
+			return nullptr;
+		}
+		else
+			return compileType(rnType->integerType());
 	}
 	else if (auto strType = dynamic_cast<StringLiteralType const*>(type)) {
 		LogError("StringLiteralType");
@@ -962,9 +986,21 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 	}
 
 	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
-		// tuple type is handled differently
-		LogError("CompileType: do not expect TupleType here");
-		return nullptr;
+		string tupleName = "tuple";
+		for (Type const* type : tupleType->components())
+			tupleName = tupleName + "." + type->canonicalName();
+
+		LLType* llTupleType = MapTupleType[tupleName];
+
+		if (llTupleType == nullptr) {
+			vector<LLType*> llElemTypes;
+			for (Type const* type : tupleType->components())
+				llElemTypes.push_back(compileType(type));
+			llTupleType = LLStructType::create(Context, llElemTypes, tupleName);
+			MapTupleType[tupleName] = llTupleType;
+		}
+
+		return llTupleType;
 	}
 
 	else if (auto funcType = dynamic_cast<FunctionType const*>(type)) {
@@ -1059,10 +1095,4 @@ LLValue* LlvmCompiler::findNamedValue(string name) {
 	else if (MapGlobalVars.find(name) != MapGlobalVars.end())
 		return MapGlobalVars[name];
 	else return nullptr;
-}
-
-LLBlock* LlvmCompiler::createLlvmBlock(string name, LLFunction* func) {
-	name = "_" + name + "_" + to_string(IndexBlock);
-	IndexBlock++;
-	return LLBlock::Create(Context, name, func);
 }

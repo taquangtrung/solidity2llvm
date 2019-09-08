@@ -242,45 +242,47 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
  ********************************************************/
 
 void LlvmCompiler::compileStmt(Statement const& stmt) {
-	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt)) {
+	if (auto s = dynamic_cast<InlineAssembly const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<Block const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<Block const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<PlaceholderStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<IfStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<IfStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<ForStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<ForStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<WhileStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<WhileStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<Continue const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<Continue const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<Break const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<Break const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<Return const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<Return const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<Throw const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<Throw const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<EmitStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<EmitStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<VariableDeclarationStatement const*>(&stmt))
 		return compileStmt(s);
-	}
-	else if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt)) {
+
+	if (auto s = dynamic_cast<ExpressionStatement const*>(&stmt))
 		return compileStmt(s);
-	}
+
+	LogError("CompileStmt: Unknown Stmt");
+	return nullptr;
 }
 
 void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
@@ -483,11 +485,7 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 			if (var != nullptr) {
 				LLValue* llVar = compileLocalVarDecl(*var);
 				vector<LLValue*> gepIndices = makeIndexGEP({0, index});
-				LogDebug("LLInitValue: ", llInitValue);
-				cout << "index: " << index << endl;
 				LLValue* llVarVal = Builder.CreateGEP(llBaseValue, gepIndices);
-				LogDebug("LLVarVal: ", llVarVal);
-				LogDebug("LLVar: ", llVar);
 				Builder.CreateStore(llVarVal, llVar);
 			}
 			index++;
@@ -496,12 +494,11 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	}
 
 	// initialized by other expressions
-	for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
+	for (ASTPointer<VariableDeclaration> var : stmt->declarations())
 		if (var != nullptr) {
 			LLValue* llVar = compileLocalVarDecl(*var);
 			Builder.CreateStore(llInitValue, llVar);
 		}
-	}
 
 }
 
@@ -516,36 +513,35 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
 	// LogDebug("Compile Exp: ", *exp);
 
-	if (auto e = dynamic_cast<Conditional const*>(exp)) {
+	if (auto e = dynamic_cast<Conditional const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<Assignment const*>(exp)) {
+
+	if (auto e = dynamic_cast<Assignment const*>(exp))
 	  return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<TupleExpression const*>(exp)) {
+
+	if (auto e = dynamic_cast<TupleExpression const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<UnaryOperation const*>(exp)) {
+
+	if (auto e = dynamic_cast<UnaryOperation const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<BinaryOperation const*>(exp)) {
+
+	if (auto e = dynamic_cast<BinaryOperation const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<FunctionCall const*>(exp)) {
+
+	if (auto e = dynamic_cast<FunctionCall const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<NewExpression const*>(exp)) {
+
+	if (auto e = dynamic_cast<NewExpression const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<MemberAccess const*>(exp)) {
+
+	if (auto e = dynamic_cast<MemberAccess const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<IndexAccess const*>(exp)) {
+
+	if (auto e = dynamic_cast<IndexAccess const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<PrimaryExpression const*>(exp)) {
+
+	if (auto e = dynamic_cast<PrimaryExpression const*>(exp))
 		return compileExp(e);
-	}
 
 	LogError("compileExp: unknown expression: ", *exp);
 	return nullptr;
@@ -752,7 +748,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	}
 
 	// a call to a constructor of a struct
-	else if (annon.kind == FunctionCallKind::StructConstructorCall) {
+	if (annon.kind == FunctionCallKind::StructConstructorCall) {
 		vector<LLConstant*> llArgs;
 		for (auto arg : exp->arguments())
 			if (auto a = llvm::dyn_cast<LLConstant>(compileExp((&arg)->get())))
@@ -763,7 +759,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	}
 
 	// a call to a type conversion
-	else if (annon.kind == FunctionCallKind::TypeConversion) {
+	if (annon.kind == FunctionCallKind::TypeConversion) {
 		LLValue* llArg = compileRhsExp((&(exp->arguments().at(0)))->get());
 
 		if (auto t = dynamic_cast<IntegerType const*>(annon.type)) {
@@ -777,7 +773,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	}
 
 	// invalid function call
-  LogError("FunctionCall: unknown FunctionCall type");
+  LogError("CompileFunctionCall: Unknown FunctionCall Type");
 	return nullptr;
 }
 
@@ -836,17 +832,16 @@ LLValue* LlvmCompiler::compileExp(IndexAccess const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
-	if (auto e = dynamic_cast<Identifier const*>(exp)) {
+	if (auto e = dynamic_cast<Identifier const*>(exp))
 		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<ElementaryTypeNameExpression const*>(exp)) {
-		return compileExp(e);
-	}
-	else if (auto e = dynamic_cast<Literal const*>(exp)) {
-		return compileExp(e);
-	}
 
-	LogError("compileExp: PrimaryExpression: unknown expression", *exp);
+	if (auto e = dynamic_cast<ElementaryTypeNameExpression const*>(exp))
+		return compileExp(e);
+
+	if (auto e = dynamic_cast<Literal const*>(exp))
+		return compileExp(e);
+
+	LogError("CompilePrimaryExpression: unknown expression", *exp);
 	return nullptr;
 }
 
@@ -933,23 +928,22 @@ LLValue* LlvmCompiler::compileRhsExp(Expression const* exp) {
  ********************************************************/
 
 LLType* LlvmCompiler::compileTypeName(TypeName const* type) {
-	if (auto t = dynamic_cast<ElementaryTypeName const*>(type)) {
+	if (auto t = dynamic_cast<ElementaryTypeName const*>(type))
 		return compileTypeName(t);
-	}
-	else if (auto t = dynamic_cast<UserDefinedTypeName const*>(type)) {
-		return compileTypeName(t);
-	}
-	else if (auto t = dynamic_cast<FunctionTypeName const*>(type)) {
-		return compileTypeName(t);
-	}
-	else if (auto t = dynamic_cast<Mapping const*>(type)) {
-		return compileTypeName(t);
-	}
-	else if (auto t = dynamic_cast<ArrayTypeName const*>(type)) {
-		return compileTypeName(t);
-	}
 
-	LogError("compileTypeName: Unknown TypeName: ", type);
+	if (auto t = dynamic_cast<UserDefinedTypeName const*>(type))
+		return compileTypeName(t);
+
+	if (auto t = dynamic_cast<FunctionTypeName const*>(type))
+		return compileTypeName(t);
+
+	if (auto t = dynamic_cast<Mapping const*>(type))
+		return compileTypeName(t);
+
+	if (auto t = dynamic_cast<ArrayTypeName const*>(type))
+		return compileTypeName(t);
+
+	LogError("Compiletypename: Unknown TypeName");
 	return nullptr;
 }
 
@@ -983,18 +977,18 @@ LLType* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 }
 
 LLType* LlvmCompiler::compileType(TypePointer type) {
-	if (type == nullptr)
+	if (type == nullptr) {
 		LogError("compileType: input is null type");
+		return nullptr;
+	}
 
-	else if (auto intType = dynamic_cast<IntegerType const*>(type)) {
+	if (auto intType = dynamic_cast<IntegerType const*>(type))
 		return LLIntegerType::get(Context, intType->numBits());
-	}
 
-	else if (auto fpType = dynamic_cast<FixedPointType const*>(type)) {
+	if (auto fpType = dynamic_cast<FixedPointType const*>(type))
 		LogError("FixedPointType");
-	}
 
-	else if (auto rnType = dynamic_cast<RationalNumberType const*>(type)) {
+	if (auto rnType = dynamic_cast<RationalNumberType const*>(type)) {
 		if (rnType->isFractional()) {
 			LogError("RationalNumberType: handle fractional");
 			return nullptr;
@@ -1004,40 +998,37 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 			return LLIntegerType::get(Context, intType->numBits());
 		}
 	}
-	else if (auto strType = dynamic_cast<StringLiteralType const*>(type)) {
+
+	if (auto strType = dynamic_cast<StringLiteralType const*>(type))
 		LogError("StringLiteralType");
-	}
 
-	else if (auto boolType =  dynamic_cast<BoolType const*>(type)) {
+	if (auto boolType =  dynamic_cast<BoolType const*>(type))
 		return LLIntegerType::get(Context, 8);
-	}
 
-	else if (auto structType = dynamic_cast<StructType const*>(type)) {
+	if (auto structType = dynamic_cast<StructType const*>(type))
 		return MapStructTypes[structType->canonicalName()];
-	}
 
-	else if (auto fixbyteType = dynamic_cast<FixedBytesType const*>(type)) {
+	if (auto fixbyteType = dynamic_cast<FixedBytesType const*>(type)) {
 		uint64_t size = fixbyteType->numBytes();
 		LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
 		return LLArrayType::get(llBaseType, size);
 	}
 
-	else if (auto arrayType = dynamic_cast<ArrayType const*>(type)) {
-		uint64_t size = (uint64_t)arrayType->length();  // converting u256 to uint64
+	if (auto arrayType = dynamic_cast<ArrayType const*>(type)) {
+		uint64_t size = (uint64_t)arrayType->length();
 		LLType* llBaseType = compileType(arrayType->baseType());
 		return LLArrayType::get(llBaseType, size);
 	}
 
-	else if (auto contractType = dynamic_cast<ContractType const*>(type)) {
+	if (auto contractType = dynamic_cast<ContractType const*>(type))
 		LogError("ContractType");
-	}
 
-	else if (auto enumType = dynamic_cast<EnumType const*>(type)) {
+	if (auto enumType = dynamic_cast<EnumType const*>(type)) {
 		// compile an enum type to an integer type
 		return LLIntegerType::get(Context, 64);
 	}
 
-	else if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
+	if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
 		string tupleName = "tuple";
 		for (Type const* type : tupleType->components())
 			tupleName = tupleName + "." + type->canonicalName();
@@ -1055,42 +1046,34 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 		return llTupleType;
 	}
 
-	else if (auto funcType = dynamic_cast<FunctionType const*>(type)) {
+	if (auto funcType = dynamic_cast<FunctionType const*>(type))
 		LogError("FunctionType");
-	}
 
-	else if (auto mapType = dynamic_cast<MappingType const*>(type)) {
+	if (auto mapType = dynamic_cast<MappingType const*>(type))
 		LogError("MappingType");
-	}
 
-	else if (auto typeType = dynamic_cast<TypeType const*>(type)) {
+	if (auto typeType = dynamic_cast<TypeType const*>(type))
 		LogError("TypeType");
-	}
 
-	else if (auto modifierType = dynamic_cast<ModifierType const*>(type)) {
+	if (auto modifierType = dynamic_cast<ModifierType const*>(type))
 		LogError("ModifierType");
-	}
 
-	else if (auto moduleType = dynamic_cast<ModuleType const*>(type)) {
+	if (auto moduleType = dynamic_cast<ModuleType const*>(type))
 		LogError("ModuleType");
-	}
 
-	else if (auto magicType = dynamic_cast<MagicType const*>(type)) {
+	if (auto magicType = dynamic_cast<MagicType const*>(type))
 		LogError("MagicType");
-	}
 
-	else if (auto iadType = dynamic_cast<InaccessibleDynamicType const*>(type)) {
+	if (auto iadType = dynamic_cast<InaccessibleDynamicType const*>(type))
 		LogError("InaccessibleDynamicType");
-	}
 
-	else if (auto addrType = dynamic_cast<AddressType const*>(type)) {
+	if (auto addrType = dynamic_cast<AddressType const*>(type)) {
 		// Soldity's address is 20 bytes
 		auto byteType = LLIntegerType::get(Context, 8);
 		return LLArrayType::get(byteType, 20);
 	}
 
-	LogError("compileType: Unknown Type", type);
-
+	LogError("CompileType: Unknown Type");
 	return nullptr;
 }
 
@@ -1144,23 +1127,24 @@ string LlvmCompiler::stringOf(LLType* type) {
 LLValue* LlvmCompiler::findNamedValue(string name) {
 	if (MapLocalVars.find(name) != MapLocalVars.end())
 		return MapLocalVars[name];
-	else if (MapGlobalVars.find(name) != MapGlobalVars.end())
+
+	if (MapGlobalVars.find(name) != MapGlobalVars.end())
 		return MapGlobalVars[name];
-	else return nullptr;
+
+	return nullptr;
 }
 
 string LlvmCompiler::getFunctionName(FunctionCall const* exp) {
 	Expression const& baseExp = exp->expression();
 	if (auto idExp = dynamic_cast<Identifier const*>(&baseExp))
 		return idExp->name();
-	else
-		return nullptr;
+
+	return nullptr;
 }
 
 vector<LLValue*> LlvmCompiler::makeIndexGEP(list<int> indices) {
 	vector<LLValue*> llIndices;
-	for (auto i : indices) {
+	for (auto i : indices)
 		llIndices.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), i));
-	}
 	return llIndices;
 }

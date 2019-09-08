@@ -56,7 +56,7 @@ using LLType = llvm::Type;
 using LLArrayType = llvm::ArrayType;
 using LLIntegerType = llvm::IntegerType;
 using LLStructType = llvm::StructType;
-using LLFunctionType = llvm::FunctionType;
+using LLFuncType = llvm::FunctionType;
 using LLGlobalVar = llvm::GlobalVariable;
 
 namespace dev {
@@ -81,6 +81,7 @@ class LlvmCompiler {
 	LLIntegerType* compileEnumDecl(EnumDefinition const*);
 	LLValue* compileGlobalVarDecl(VariableDeclaration const*);
 	LLValue* compileLocalVarDecl(VariableDeclaration&, Expression const*);
+	LLValue* compileLocalVarDecl(VariableDeclaration&);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
 
 	// compile statements

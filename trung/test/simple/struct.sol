@@ -25,9 +25,17 @@ contract SimpleStruct {
     return x;
   }
 
+  /* function bar() public returns (Foo memory) { */
+  /*   Foo memory m; */
+  /*   m.value = 1; */
+  /*   m.data = 2; */
+  /*   return m; */
+  /* } */
+
   function get() public view returns (uint) {
     /* Foo storage z = Foo({value: 2, data: 10}); */
     /* a.value = 5; */
+    /* Foo memory aa = bar(); */
     return storedData;
   }
 }

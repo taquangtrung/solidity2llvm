@@ -7,10 +7,15 @@ contract C {
     return (7, true, 2);
   }
 
+  function f2() public pure returns (uint, uint) {
+    return (7, 2);
+  }
+
   function g() public {
     int a = 2;
     (uint x, , uint y) = f();
-    (x, y) = (y, x);
-    (data.length, , ) = f();
+    (uint n, uint m) = f2();
+    /* (x, y) = (y, x); */
+    /* (data.length, , ) = f(); */
   }
 }

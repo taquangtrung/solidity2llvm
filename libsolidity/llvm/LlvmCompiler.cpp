@@ -163,6 +163,10 @@ LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 	return Builder.CreateStore(llValue, llVar);
 }
 
+LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
+	return compileLocalVarDecl(var, nullptr);
+}
+
 LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// prepare environment
 	MapLocalVars.clear();
@@ -173,13 +177,13 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
 	vector<TypePointer> returnTypes = funcType->returnParameterTypes();
-	LLType* llReturnType;
+	LLType* llRetType;
 	switch (returnTypes.size()) {
 	case 0:
-		llReturnType = LLType::getVoidTy(Context);
+		llRetType = LLType::getVoidTy(Context);
 		break;
 	case 1:
-		llReturnType = compileType(returnTypes.at(0));
+		llRetType = compileType(returnTypes.at(0));
 		break;
 	default:
 		// Create a struct type to capture this returned type
@@ -187,21 +191,22 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 		for (Type const* type : returnTypes)
 			tupleName = tupleName + "." + type->canonicalName();
 
-		llReturnType = MapTupleType[tupleName];
+		llRetType = MapTupleType[tupleName];
 
-		if (llReturnType == nullptr) {
+		if (llRetType == nullptr) {
 			vector<LLType*> llReturnElemTypes;
 			for (Type const* type : returnTypes)
 				llReturnElemTypes.push_back(compileType(type));
-			llReturnType = LLStructType::create(Context, llReturnElemTypes, tupleName);
-			MapTupleType[tupleName] = llReturnType;
+			llRetType = LLStructType::create(Context, llReturnElemTypes,
+																			 tupleName, true);
+			MapTupleType[tupleName] = llRetType;
 		}
 	}
 
 	vector<LLType*> llParamTypes;
 	for (ASTPointer<VariableDeclaration> p: func->parameters())
 		llParamTypes.push_back(compileType(p->type()));
-	LLFunctionType* llFType = LLFunctionType::get(llReturnType, llParamTypes, false);
+	LLFuncType* llFType = LLFuncType::get(llRetType, llParamTypes, false);
 
 	// create function
 	LLFunction *llFunc = LLFunction::Create(llFType, LLFunction::CommonLinkage,
@@ -413,8 +418,8 @@ void LlvmCompiler::compileStmt(Return const* stmt) {
 		for (ASTPointer<VariableDeclaration> var : returnParams->parameters())
 			tupleName = tupleName + "." + var->type()->canonicalName();
 
-		LLType* llReturnType = MapTupleType[tupleName];
-		LLValue* llReturnExp = Builder.CreateAlloca(llReturnType);
+		LLType* llRetType = MapTupleType[tupleName];
+		LLValue* llReturnExp = Builder.CreateAlloca(llRetType);
 
 		int index = 0;
 		for (ASTPointer<Expression> elem : tupleExp->components()) {
@@ -445,23 +450,59 @@ void LlvmCompiler::compileStmt(EmitStatement const* stmt) {
 void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	Expression const* initValue = stmt->initialValue();
 
+	// no initialization
 	if (initValue == nullptr) {
 		for (ASTPointer<VariableDeclaration> var : stmt->declarations())
 			compileLocalVarDecl(*var, nullptr);
+		return;
 	}
-	else if (auto tupleValue = dynamic_cast<TupleExpression const*>(initValue)) {
+
+	LLValue* llInitValue = compileExp(initValue);
+
+	// initialized by a tuple
+	if (auto tplValue = dynamic_cast<TupleExpression const*>(initValue)) {
 		int index = 0;
-		vector<ASTPointer<Expression>> elems = tupleValue->components();
+		vector<ASTPointer<Expression>> elems = tplValue->components();
 		for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
-			Expression &elem = *(elems.at(index));
-			compileLocalVarDecl(*var, &elem);
+			if (var != nullptr) {
+				Expression &elem = *(elems.at(index));
+				compileLocalVarDecl(*var, &elem);
+			}
 			index++;
 		}
+		return;
 	}
-	else {
-		for (ASTPointer<VariableDeclaration> var : stmt->declarations())
-			compileLocalVarDecl(*var, initValue);
+
+	// initialized by a function call
+	if (auto fcValue = dynamic_cast<FunctionCall const*>(initValue)) {
+		LLType* llBaseType = compileType(initValue->annotation().type);
+		LLValue* llBaseValue = Builder.CreateAlloca(llBaseType);
+		Builder.CreateStore(llInitValue, llBaseValue);
+		int index = 0;
+		for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
+			if (var != nullptr) {
+				LLValue* llVar = compileLocalVarDecl(*var);
+				vector<LLValue*> gepIndices = makeIndexGEP({0, index});
+				LogDebug("LLInitValue: ", llInitValue);
+				cout << "index: " << index << endl;
+				LLValue* llVarVal = Builder.CreateGEP(llBaseValue, gepIndices);
+				LogDebug("LLVarVal: ", llVarVal);
+				LogDebug("LLVar: ", llVar);
+				Builder.CreateStore(llVarVal, llVar);
+			}
+			index++;
+		}
+		return;
 	}
+
+	// initialized by other expressions
+	for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
+		if (var != nullptr) {
+			LLValue* llVar = compileLocalVarDecl(*var);
+			Builder.CreateStore(llInitValue, llVar);
+		}
+	}
+
 }
 
 void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
@@ -473,6 +514,8 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
+	// LogDebug("Compile Exp: ", *exp);
+
 	if (auto e = dynamic_cast<Conditional const*>(exp)) {
 		return compileExp(e);
 	}
@@ -699,7 +742,6 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
 		string funcName = getFunctionName(exp);
-  	LogDebug("Compile FunctionCall: Unknown Function Name");
 		LLFunction *llFunc = CurrentModule->getFunction(funcName);
 
 		vector<LLValue*> llArgs;
@@ -957,8 +999,10 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 			LogError("RationalNumberType: handle fractional");
 			return nullptr;
 		}
-		else
-			return compileType(rnType->integerType());
+		else {
+			IntegerType const* intType = rnType->integerType();
+			return LLIntegerType::get(Context, intType->numBits());
+		}
 	}
 	else if (auto strType = dynamic_cast<StringLiteralType const*>(type)) {
 		LogError("StringLiteralType");
@@ -1115,7 +1159,8 @@ string LlvmCompiler::getFunctionName(FunctionCall const* exp) {
 
 vector<LLValue*> LlvmCompiler::makeIndexGEP(list<int> indices) {
 	vector<LLValue*> llIndices;
-	for (auto index : indices) {
-		llIndices.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+	for (auto i : indices) {
+		llIndices.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), i));
 	}
+	return llIndices;
 }

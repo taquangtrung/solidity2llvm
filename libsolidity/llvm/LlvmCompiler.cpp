@@ -395,8 +395,16 @@ void LlvmCompiler::compileStmt(Break const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(Return const* stmt) {
-	LogError("Handle Return Statement");
-	Builder.CreateRet(compileExp(stmt->expression()));
+	Expression const* returnExp = stmt->expression();
+
+	if (auto tupleValue = dynamic_cast<TupleExpression const*>(returnExp)) {
+		// when returning a tuple expression, use a struct to capture this result
+
+	}
+	else {
+		// return a normal expression
+		Builder.CreateRet(compileExp(returnExp));
+	}
 }
 
 void LlvmCompiler::compileStmt(Throw const* stmt) {
@@ -424,8 +432,10 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 			index++;
 		}
 	}
-	else
-		LogError("Compile VariableDeclarationStatement: unknown declaration");
+	else {
+		for (ASTPointer<VariableDeclaration> var : stmt->declarations())
+			compileLocalVarDecl(*var, initValue);
+	}
 }
 
 void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
@@ -515,8 +525,22 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {
-	LogError("Compile TupleExpression: not expect here");
-	return nullptr;
+	// translate a tuple expression to a struct
+	TypePointer expType = exp->annotation().type;
+	LLType* llExpType = compileType(expType);
+	LLValue* llBaseExp = Builder.CreateAlloca(llExpType);
+
+	// store element value
+	int index = 0;
+	for (ASTPointer<Expression> elem : exp->components()) {
+		LLValue* llElemValue = compileExp(&(*elem));
+		vector<LLValue*> valueIndex;
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
+		LLValue* llElemAddr = Builder.CreateGEP(llBaseExp, valueIndex);
+		Builder.CreateStore(llElemValue, llElemAddr);
+		index++;
+	}
 }
 
 LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
@@ -632,14 +656,17 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
+	Expression const& baseExp = exp->expression();
 	FunctionCallAnnotation &annon = exp->annotation();
 	LLType* llType = compileType(annon.type);
 
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
-		LogDebug("compileExp: Normal FunctionCall");
-
-		string funcName = *(exp->names().at(0));
+		string funcName;
+		if (auto idExp = dynamic_cast<Identifier const*>(&baseExp))
+			funcName = idExp->name();
+		else
+			LogDebug("Compile FunctionCall: Unknown Function Name");
 		LLFunction *llFunc = Module->getFunction(funcName);
 
 		vector<LLValue*> llArgs;

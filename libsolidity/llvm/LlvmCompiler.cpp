@@ -176,40 +176,11 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 
 	// function type
 	FunctionTypePointer funcType = func->functionType(false);
-	vector<TypePointer> returnTypes = funcType->returnParameterTypes();
-	LLType* llRetType;
-	switch (returnTypes.size()) {
-	case 0:
-		llRetType = LLType::getVoidTy(Context);
-		break;
-	case 1:
-		llRetType = compileType(returnTypes.at(0));
-		break;
-	default:
-		// Create a struct type to capture this returned type
-		string tupleName = "tuple";
-		for (Type const* type : returnTypes)
-			tupleName = tupleName + "." + type->canonicalName();
-
-		llRetType = MapTupleType[tupleName];
-
-		if (llRetType == nullptr) {
-			vector<LLType*> llReturnElemTypes;
-			for (Type const* type : returnTypes)
-				llReturnElemTypes.push_back(compileType(type));
-			llRetType = LLStructType::create(Context, llReturnElemTypes,
-																			 tupleName, true);
-			MapTupleType[tupleName] = llRetType;
-		}
-	}
-
-	vector<LLType*> llParamTypes;
-	for (ASTPointer<VariableDeclaration> p: func->parameters())
-		llParamTypes.push_back(compileType(p->type()));
-	LLFuncType* llFType = LLFuncType::get(llRetType, llParamTypes, false);
+	LLFuncType* llFuncType = llvm::dyn_cast<LLFuncType>(compileType(funcType));
 
 	// create function
-	LLFunction *llFunc = LLFunction::Create(llFType, LLFunction::CommonLinkage,
+	LLFunction *llFunc = LLFunction::Create(llFuncType,
+																					LLFunction::CommonLinkage,
 																					funcName, CurrentModule.get());
 
 	// set names for parameters and also record it to local names
@@ -282,12 +253,11 @@ void LlvmCompiler::compileStmt(Statement const& stmt) {
 		return compileStmt(s);
 
 	LogError("CompileStmt: Unknown Stmt");
-	return nullptr;
 }
 
 void LlvmCompiler::compileStmt(InlineAssembly const* stmt) {
 	// TODO
-	LogError("compileStmt: InlineAssembly: unhandled");
+	LogError("Compile InlineAssembly: Need to handle");
 }
 
 void LlvmCompiler::compileStmt(Block const* stmt) {
@@ -801,7 +771,8 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 			return LLConstantInt::get(llIntType, value);
 		}
 	}
-	else if (auto structType = dynamic_cast<StructType const*>(baseType)) {
+
+	if (auto structType = dynamic_cast<StructType const*>(baseType)) {
 		string llStructName = baseType->canonicalName();
 		LLStructType* llStructType = MapStructTypes[llStructName];
 		StructDefinition const& structDef = structType->structDefinition();
@@ -822,7 +793,6 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 
 	LogError("compileExp: MemberAccess: unknown exp: ", *exp);
 
-	// TODO
 	return nullptr;
 }
 
@@ -841,13 +811,11 @@ LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {
 	if (auto e = dynamic_cast<Literal const*>(exp))
 		return compileExp(e);
 
-	LogError("CompilePrimaryExpression: unknown expression", *exp);
+	LogError("Compile PrimaryExpression: Unknown Expression");
 	return nullptr;
 }
 
 LLValue* LlvmCompiler::compileExp(Identifier const* exp) {
-	// LLValue* llexp = findNamedValue(exp->name());
-	// return Builder.CreateLoad(llexp);
 	return findNamedValue(exp->name());
 }
 
@@ -857,8 +825,6 @@ LLValue* LlvmCompiler::compileExp(ElementaryTypeNameExpression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Literal const* exp) {
-	// Literal types can be one of the following:
-	// TrueLiteral, FalseLiteral, Number, StringLiteral, and CommentLiteral
 	string content = exp->value();
 	switch (exp->token()) {
 
@@ -982,99 +948,220 @@ LLType* LlvmCompiler::compileType(TypePointer type) {
 		return nullptr;
 	}
 
-	if (auto intType = dynamic_cast<IntegerType const*>(type))
-		return LLIntegerType::get(Context, intType->numBits());
+	if (auto t = dynamic_cast<IntegerType const*>(type))
+		return compileType(t);
 
-	if (auto fpType = dynamic_cast<FixedPointType const*>(type))
-		LogError("FixedPointType");
+	if (auto t = dynamic_cast<FixedPointType const*>(type))
+		return compileType(t);
 
-	if (auto rnType = dynamic_cast<RationalNumberType const*>(type)) {
-		if (rnType->isFractional()) {
-			LogError("RationalNumberType: handle fractional");
-			return nullptr;
-		}
-		else {
-			IntegerType const* intType = rnType->integerType();
-			return LLIntegerType::get(Context, intType->numBits());
-		}
-	}
+	if (auto t = dynamic_cast<RationalNumberType const*>(type))
+		return compileType(t);
 
-	if (auto strType = dynamic_cast<StringLiteralType const*>(type))
-		LogError("StringLiteralType");
+	if (auto t = dynamic_cast<StringLiteralType const*>(type))
+		return compileType(t);
 
-	if (auto boolType =  dynamic_cast<BoolType const*>(type))
-		return LLIntegerType::get(Context, 8);
+	if (auto t =  dynamic_cast<BoolType const*>(type))
+		return compileType(t);
 
-	if (auto structType = dynamic_cast<StructType const*>(type))
-		return MapStructTypes[structType->canonicalName()];
+	if (auto t = dynamic_cast<StructType const*>(type))
+		return compileType(t);
 
-	if (auto fixbyteType = dynamic_cast<FixedBytesType const*>(type)) {
-		uint64_t size = fixbyteType->numBytes();
-		LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
-		return LLArrayType::get(llBaseType, size);
-	}
+	if (auto t = dynamic_cast<FixedBytesType const*>(type))
+		return compileType(t);
 
-	if (auto arrayType = dynamic_cast<ArrayType const*>(type)) {
-		uint64_t size = (uint64_t)arrayType->length();
-		LLType* llBaseType = compileType(arrayType->baseType());
-		return LLArrayType::get(llBaseType, size);
-	}
+	if (auto t = dynamic_cast<ArrayType const*>(type))
+		return compileType(t);
 
-	if (auto contractType = dynamic_cast<ContractType const*>(type))
-		LogError("ContractType");
+	if (auto t = dynamic_cast<ContractType const*>(type))
+		return compileType(t);
 
-	if (auto enumType = dynamic_cast<EnumType const*>(type)) {
-		// compile an enum type to an integer type
-		return LLIntegerType::get(Context, 64);
-	}
+	if (auto t = dynamic_cast<EnumType const*>(type))
+		return compileType(t);
 
-	if (auto tupleType = dynamic_cast<TupleType const*>(type)) {
-		string tupleName = "tuple";
-		for (Type const* type : tupleType->components())
-			tupleName = tupleName + "." + type->canonicalName();
+	if (auto t = dynamic_cast<TupleType const*>(type))
+		return compileType(t);
 
-		LLType* llTupleType = MapTupleType[tupleName];
+	if (auto t = dynamic_cast<FunctionType const*>(type))
+		return compileType(t);
 
-		if (llTupleType == nullptr) {
-			vector<LLType*> llElemTypes;
-			for (Type const* type : tupleType->components())
-				llElemTypes.push_back(compileType(type));
-			llTupleType = LLStructType::create(Context, llElemTypes, tupleName);
-			MapTupleType[tupleName] = llTupleType;
-		}
+	if (auto t= dynamic_cast<MappingType const*>(type))
+		return compileType(t);
 
-		return llTupleType;
-	}
+	if (auto t = dynamic_cast<TypeType const*>(type))
+		return compileType(t);
 
-	if (auto funcType = dynamic_cast<FunctionType const*>(type))
-		LogError("FunctionType");
+	if (auto t = dynamic_cast<ModifierType const*>(type))
+		return compileType(t);
 
-	if (auto mapType = dynamic_cast<MappingType const*>(type))
-		LogError("MappingType");
+	if (auto t = dynamic_cast<ModuleType const*>(type))
+		return compileType(t);
 
-	if (auto typeType = dynamic_cast<TypeType const*>(type))
-		LogError("TypeType");
+	if (auto t = dynamic_cast<MagicType const*>(type))
+		return compileType(t);
 
-	if (auto modifierType = dynamic_cast<ModifierType const*>(type))
-		LogError("ModifierType");
+	if (auto t = dynamic_cast<InaccessibleDynamicType const*>(type))
+		return compileType(t);
 
-	if (auto moduleType = dynamic_cast<ModuleType const*>(type))
-		LogError("ModuleType");
-
-	if (auto magicType = dynamic_cast<MagicType const*>(type))
-		LogError("MagicType");
-
-	if (auto iadType = dynamic_cast<InaccessibleDynamicType const*>(type))
-		LogError("InaccessibleDynamicType");
-
-	if (auto addrType = dynamic_cast<AddressType const*>(type)) {
-		// Soldity's address is 20 bytes
-		auto byteType = LLIntegerType::get(Context, 8);
-		return LLArrayType::get(byteType, 20);
-	}
+	if (auto t = dynamic_cast<AddressType const*>(type))
+		return compileType(t);
 
 	LogError("CompileType: Unknown Type");
 	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(IntegerType const* type) {
+	return LLIntegerType::get(Context, type->numBits());
+}
+
+LLType* LlvmCompiler::compileType(FixedPointType const* type) {
+	// TODO
+	LogError("FixedPointType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(RationalNumberType const* type) {
+	if (type->isFractional()) {
+		LogError("RationalNumberType: handle fractional");
+		return nullptr;
+	}
+	else {
+		IntegerType const* intType = type->integerType();
+		return LLIntegerType::get(Context, intType->numBits());
+	}
+}
+
+LLType* LlvmCompiler::compileType(StringLiteralType const* type) {
+	// TODO
+	LogError("StringLiteralType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(BoolType const* type) {
+	return LLIntegerType::get(Context, 8);
+}
+
+LLType* LlvmCompiler::compileType(StructType const* type) {
+	return MapStructTypes[type->canonicalName()];
+}
+
+LLType* LlvmCompiler::compileType(FixedBytesType const* type) {
+	uint64_t size = type->numBytes();
+	LLIntegerType* llBaseType = LLIntegerType::get(Context, 8);
+	return LLArrayType::get(llBaseType, size);
+}
+
+LLType* LlvmCompiler::compileType(ArrayType const* type) {
+	uint64_t size = (uint64_t)type->length();
+	LLType* llBaseType = compileType(type->baseType());
+	return LLArrayType::get(llBaseType, size);
+}
+
+LLType* LlvmCompiler::compileType(ContractType const* type) {
+	// TODO
+	LogError("ContractType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(EnumType const* type) {
+	// compile an enum type to an integer type
+	return LLIntegerType::get(Context, 64);
+}
+
+LLType* LlvmCompiler::compileType(TupleType const* type) {
+	string tupleName = "tuple";
+	for (Type const* t : type->components())
+		tupleName = tupleName + "." + t->canonicalName();
+
+	LLType* llTupleType = MapTupleType[tupleName];
+
+	if (llTupleType == nullptr) {
+		vector<LLType*> llElemTypes;
+		for (Type const* t : type->components())
+			llElemTypes.push_back(compileType(t));
+		llTupleType = LLStructType::create(Context, llElemTypes, tupleName);
+		MapTupleType[tupleName] = llTupleType;
+	}
+
+	return llTupleType;
+}
+
+LLType* LlvmCompiler::compileType(FunctionType const* type) {
+	// return type
+	vector<TypePointer> returnTypes = type->returnParameterTypes();
+	LLType* llRetType;
+	switch (returnTypes.size()) {
+	case 0:
+		llRetType = LLType::getVoidTy(Context);
+		break;
+	case 1:
+		llRetType = compileType(returnTypes.at(0));
+		break;
+	default:
+		// Create a struct type to capture this returned type
+		string tupleName = "tuple";
+		for (Type const* type : returnTypes)
+			tupleName = tupleName + "." + type->canonicalName();
+
+		llRetType = MapTupleType[tupleName];
+
+		if (llRetType == nullptr) {
+			vector<LLType*> llReturnElemTypes;
+			for (Type const* type : returnTypes)
+				llReturnElemTypes.push_back(compileType(type));
+			llRetType = LLStructType::create(Context, llReturnElemTypes,
+																			 tupleName, true);
+			MapTupleType[tupleName] = llRetType;
+		}
+	}
+
+	// params type
+	vector<LLType*> llParamTypes;
+	for (Type const* t: type->parameterTypes())
+		llParamTypes.push_back(compileType(t));
+
+	return LLFuncType::get(llRetType, llParamTypes, false);
+}
+
+LLType* LlvmCompiler::compileType(MappingType const* type) {
+	// TODO
+	LogError("MappingType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(TypeType const* type) {
+	// TODO
+	LogError("TypeType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(ModifierType const* type) {
+	// TODO
+	LogError("ModifierType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(ModuleType const* type) {
+	// TODO
+	LogError("ModuleType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(MagicType const* type) {
+	// TODO
+	LogError("MagicType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(InaccessibleDynamicType const* type) {
+	// TODO
+	LogError("InaccessibleDynamicType");
+	return nullptr;
+}
+
+LLType* LlvmCompiler::compileType(AddressType const* type) {
+	// Soldity's address is 20 bytes
+	auto byteType = LLIntegerType::get(Context, 8);
+	return LLArrayType::get(byteType, 20);
 }
 
 

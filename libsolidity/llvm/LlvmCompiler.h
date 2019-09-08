@@ -129,7 +129,28 @@ class LlvmCompiler {
 	LLType* compileTypeName(FunctionTypeName const*);
 	LLType* compileTypeName(Mapping const*);
 	LLType* compileTypeName(ArrayTypeName const*);
+
 	LLType* compileType(TypePointer);
+	LLType* compileType(IntegerType const*);
+	LLType* compileType(FixedPointType const*);
+	LLType* compileType(RationalNumberType const*);
+	LLType* compileType(StringLiteralType const*);
+	LLType* compileType(BoolType const*);
+	LLType* compileType(StructType const*);
+	LLType* compileType(FixedBytesType const*);
+	LLType* compileType(ArrayType const*);
+	LLType* compileType(ContractType const*);
+	LLType* compileType(EnumType const*);
+	LLType* compileType(TupleType const*);
+	LLType* compileType(FunctionType const*);
+	LLType* compileType(MappingType const*);
+	LLType* compileType(TypeType const*);
+	LLType* compileType(ModifierType const*);
+	LLType* compileType(ModuleType const*);
+	LLType* compileType(MagicType const*);
+	LLType* compileType(InaccessibleDynamicType const*);
+	LLType* compileType(AddressType const*);
+
 
 	// compile a contract to string.
 	string llvmString(const ContractDefinition* contract, StringMap sourceCodes);

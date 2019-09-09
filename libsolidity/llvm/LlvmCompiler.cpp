@@ -411,8 +411,7 @@ void LlvmCompiler::compileStmt(Return const* stmt) {
 }
 
 void LlvmCompiler::compileStmt(Throw const* stmt) {
-	LogWarning("The 'throw' statement is deprecated from the version 0.4.13 ");
-	return;
+	LogError("Compiling Throw Stmt");
 }
 
 void LlvmCompiler::compileStmt(EmitStatement const* stmt) {
@@ -482,7 +481,6 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
 	// LogDebug("Compile Exp: ", *exp);
-	// print("Compile Exp: ", exp, exp);
 
 	if (auto e = dynamic_cast<Conditional const*>(exp))
 		return compileExp(e);
@@ -514,7 +512,7 @@ LLValue* LlvmCompiler::compileExp(Expression const* exp) {
 	if (auto e = dynamic_cast<PrimaryExpression const*>(exp))
 		return compileExp(e);
 
-	LogError("compileExp: unknown expression: ", *exp);
+	LogError("compileExp: unknown expression: ", exp);
 	return nullptr;
 }
 
@@ -616,7 +614,7 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: UnaryOp: unknown operator: ", *exp);
+		LogError("compileExp: UnaryOp: unknown operator: ", exp);
 		return nullptr;
 	}
 }
@@ -695,7 +693,7 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: BinaryOp: unknown operator: ", *exp);
+		LogError("compileExp: BinaryOp: unknown operator: ", exp);
 		return nullptr;
 	}
 }
@@ -790,7 +788,7 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 		return Builder.CreateGEP(llBaseExp, valueIndex);
 	}
 
-	LogError("compileExp: MemberAccess: unknown exp: ", *exp);
+	LogError("compileExp: MemberAccess: unknown exp: ", exp);
 
 	return nullptr;
 }
@@ -847,7 +845,7 @@ LLValue* LlvmCompiler::compileExp(Literal const* exp) {
 		return nullptr;
 
 	default:
-		LogError("compileExp: Literal: unknown token: ", *exp);
+		LogError("compileExp: Literal: unknown token: ", exp);
 		return nullptr;
 	}
 }

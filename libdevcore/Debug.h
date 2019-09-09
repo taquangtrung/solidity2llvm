@@ -25,49 +25,48 @@ namespace dev
 namespace solidity
 {
 
+// global variables
+
 extern bool DebugLLVM;
 
-void LogDebug(string msg);
-void LogDebug(string msg, string content);
-void LogDebug(string msg, ASTNode const& node);
-void LogDebug(string msg, ASTNode const* node);
-void LogDebug(string msg, Type const* type);
-void LogDebug(string msg, llvm::Value* value);
-void LogDebug(string msg, llvm::Type* type);
+// printing functions
 
-void LogWarning(string msg);
+extern void print(char const*);
+extern void print(ASTNode const*);
+extern void print(Type const*);
+extern void print(llvm::Value*);
+extern void print(llvm::Type*);
 
-void LogError(string msg);
-void LogError(string msg, string content);
-void LogError(string msg, ASTNode const& node);
-void LogError(string msg, ASTNode const* node);
-void LogError(string msg, Type const* type);
+// debugging functions
 
-// template <typename Arg>
-// void print(Arg arg) {
-// 	if (auto v = dynamic_cast<ASTNode const*>(arg)) {
-// 		ASTPrinter printer(*v);
-// 		printer.print(cout);
-// 		return;
-// 	}
+template <typename Arg>
+void LogDebug(Arg arg) {
+	if (DebugLLVM) {
+		print(arg);
+	}
+}
 
-// 	if (auto v = dynamic_cast<Expression const*>(arg)) {
-// 		ASTPrinter printer(*v);
-// 		printer.print(cout);
-// 		return;
-// 	}
+template <typename Arg, typename... Rest>
+void LogDebug(Arg arg, Rest... rest) {
+	LogDebug(arg);
+	LogDebug(rest...);
+}
 
-// 	if (auto v = dynamic_cast<Type const*>(arg)) {
-// 		cout << v->canonicalName();
-// 		return;
-// 	}
-// }
+// error reporting functions
 
-// template <typename Arg, typename... Rest>
-// void print(Arg arg, Rest... rest) {
-// 	print(arg);
-// 	print(rest...);
-// }
+template <typename Arg>
+void LogError(Arg arg) {
+  print(arg);
+}
+
+template <typename Arg, typename... Rest>
+void LogError(Arg arg, Rest... rest) {
+	LogError(arg);
+	if (sizeof...(rest) == 0)
+		exit(1);
+	else
+		LogError(rest...);
+}
 
 }
 }

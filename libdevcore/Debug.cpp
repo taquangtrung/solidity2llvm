@@ -15,89 +15,36 @@ using namespace std;
 
 bool dev::solidity::DebugLLVM = false;
 
-void dev::solidity::LogDebug(string msg) {
-	if (DebugLLVM)
-		cout << "!! " << msg << endl;
+void dev::solidity::print(char const* msg) {
+	cout << msg;
 }
 
-void dev::solidity::LogDebug(string msg, string content) {
-	if (DebugLLVM)
-		cout << "!! " << msg << ": " << content << endl;
-}
-
-void dev::solidity::LogDebug(string msg, ASTNode const& node) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! " << msg << ": ";
-		ASTPrinter printer(node);
-		printer.print(cout);
-		cout << endl;
-	}
-}
-
-void dev::solidity::LogDebug(string msg, ASTNode const* node) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! " << msg << ": ";
+void dev::solidity::print(ASTNode const* node) {
+	if (node == nullptr)
+		cout << "(nullptr)";
+	else {
 		ASTPrinter printer(*node);
 		printer.print(cout);
-		cout << endl;
 	}
 }
 
-void dev::solidity::LogDebug(string msg, Type const* type) {
-	if (DebugLLVM) {
-		cout << "\n!! " << msg << ": " << type->toString();
-		cout << endl;
-	}
+void dev::solidity::print(Type const* type) {
+	if (type == nullptr)
+		cout << "(nullptr)";
+	else
+		cout << type->canonicalName();
 }
 
-void dev::solidity::LogDebug(string msg, llvm::Value* value) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! " << msg << ": ";
+void dev::solidity::print(llvm::Value* value) {
+	if (value == nullptr)
+		cout << "(nullptr)";
+	else
 		value->print(llvm::outs());
-		llvm::outs() << "\n";
-	}
 }
 
-void dev::solidity::LogDebug(string msg, llvm::Type* type) {
-	if (DebugLLVM) {
-		llvm::outs() << "!! " << msg << ": ";
+void dev::solidity::print(llvm::Type* type) {
+	if (type == nullptr)
+		cout << "(nullptr)";
+	else
 		type->print(llvm::outs());
-		llvm::outs() << "\n";
-	}
-}
-
-void dev::solidity::LogWarning(string msg) {
-	cout << "\n!!! Warning: " << msg << endl;
-}
-
-void dev::solidity::LogError(string msg) {
-	cerr<< "\n!!! Error: " << msg << endl;
-	exit (1);
-}
-
-void dev::solidity::LogError(string msg, string content) {
-	cerr<< "\n!!! Error: " << msg << ": " << content << endl;
-	exit (1);
-}
-
-void dev::solidity::LogError(string msg, ASTNode const& node) {
-	ASTPrinter printer(node);
-	cerr << "\n!!! Error: " << msg << ": ";
-	printer.print(cerr);
-	cerr << endl;
-	exit (1);
-}
-
-void dev::solidity::LogError(string msg, ASTNode const* node) {
-	ASTPrinter printer(*node);
-	cerr << "\n!!! Error: " << msg << ": ";
-	printer.print(cerr);
-	cerr << endl;
-	exit (1);
-}
-
-void dev::solidity::LogError(string msg, Type const* type) {
-	cerr << "\n!!! Error: " << msg << ": " << type->toString();
-	cerr << endl;
-	exit (1);
 }

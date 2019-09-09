@@ -446,7 +446,7 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	}
 
 	// initialized by a function call
-	if (auto fcValue = dynamic_cast<FunctionCall const*>(initValue)) {
+	if (dynamic_cast<FunctionCall const*>(initValue)) {
 		LLType* llBaseType = compileType(initValue->annotation().type);
 		LLValue* llBaseValue = Builder.CreateAlloca(llBaseType);
 		Builder.CreateStore(llInitValue, llBaseValue);
@@ -527,58 +527,56 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
   Expression const& lhs = exp->leftHandSide();
 	Expression const& rhs = exp->rightHandSide();
 
-	// compile tuple differently
+	// LHS is a tuple
 	if (auto tupleLhs = dynamic_cast<TupleExpression const*>(&lhs)) {
+		// RHS is a tuple
 		if (auto tupleRhs = dynamic_cast<TupleExpression const*>(&rhs)) {
 			vector<LLValue*> llRhsElems;
 			for (ASTPointer<Expression> elemRhs : tupleRhs->components()) {
 				llRhsElems.push_back(compileRhsExp(&(*elemRhs)));
 			}
-
 			int index = 0;
+			LLValue* llAssign;
 			for (ASTPointer<Expression> elemLhs : tupleLhs->components()) {
 				if (elemLhs != nullptr) {
 					LLValue* llElemRhs = llRhsElems.at(index);
 					LLValue* llElemLhs = compileExp(&(*elemLhs));
-					Builder.CreateStore(llElemRhs, llElemLhs);
+					llAssign = Builder.CreateStore(llElemRhs, llElemLhs);
 				}
 				index++;
 			}
+			return llAssign;
 		}
-		else if (dynamic_cast<FunctionCall const*>(&rhs)) {
-			// LLValue* llRhs =  compileExp(&rhs);
 
-			// int index = 0;
-			// for (ASTPointer<Expression> elemLhs : tupleLhs->components()) {
-			// 	if (elemLhs != nullptr) {
-			// 		LLValue* llElemLhs = compileExp(&(*elemLhs));
-
-			// 		LLValue* llElemValue = compileExp(&(*elem));
-			// 		vector<LLValue*> valueIndex;
-			// 		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
-			// 		valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), index));
-			// 		LLValue* llElemAddr = Builder.CreateGEP(llReturnExp, valueIndex);
-			// 		Builder.CreateStore(llElemValue, llElemAddr);
-			// 		index++;
-
-			// 		Builder.CreateStore(llElemRhs, llElemLhs);
-			// 	}
-			// 	index++;
-			// }
-
-			// string funcName = getFunctionName(fcallRhs);
-			// fcallRhs->annotation().FunctionCallAnnotation::
-			// // FIXME: need to handle function call that return tuple
-			LogError("Handle FunctionCall in Assignment");
+		// RHS is a function call
+		if (dynamic_cast<FunctionCall const*>(&rhs)) {
+			LLValue* llRhs = compileRhsExp(&rhs);
+			LLType* llRhsBaseType = compileType(rhs.annotation().type);
+			LLValue* llRhsBaseValue = Builder.CreateAlloca(llRhsBaseType);
+			Builder.CreateStore(llRhs, llRhsBaseValue);
+			int index = 0;
+			LLValue* llAssign;
+			for (ASTPointer<Expression> elemLhs : tupleLhs->components()) {
+				if (elemLhs != nullptr) {
+					LLValue* llElemLhs = compileExp(&(*elemLhs));
+					vector<LLValue*> gepIndices = makeIndexGEP({0, index});
+					LLValue* llElemRhs = Builder.CreateGEP(llRhsBaseValue, gepIndices);
+					llAssign = Builder.CreateStore(llElemRhs, llElemLhs);
+				}
+				index++;
+			}
+			return llAssign;
 		}
-	}
-	else {
-		LLValue* llLhs = compileExp(&(exp->leftHandSide()));
-		LLValue* llRhs = compileRhsExp(&(exp->rightHandSide()));
-		return Builder.CreateStore(llRhs, llLhs);
+
+		// unknown RHS expression
+		LogError("Compile Assignment: unknown RHS expression");
+		return nullptr;
 	}
 
-	return nullptr;
+	// other cases
+	LLValue* llLhs = compileExp(&lhs);
+	LLValue* llRhs = compileRhsExp(&rhs);
+	return Builder.CreateStore(llRhs, llLhs);
 }
 
 LLValue* LlvmCompiler::compileExp(TupleExpression const* exp) {

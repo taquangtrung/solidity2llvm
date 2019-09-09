@@ -15,6 +15,7 @@ contract C {
     int a = 2;
     (uint x, , uint y) = f();
     (uint n, uint m) = f2();
+    (m,n) = f2();
     /* (x, y) = (y, x); */
     /* (data.length, , ) = f(); */
   }

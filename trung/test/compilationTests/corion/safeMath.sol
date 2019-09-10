@@ -26,7 +26,7 @@ contract safeMath {
             @uint256    Vegeredmeny.
         */
         if ( b > 0 ) {
-            assert( a - b < a );
+            /* assert( a - b < a ); */
         }
         return a - b;
     }

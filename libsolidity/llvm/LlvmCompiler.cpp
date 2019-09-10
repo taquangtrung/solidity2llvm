@@ -175,8 +175,11 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	string funcName = func->name();
 
 	// function type
-	FunctionTypePointer funcType = func->functionType(false);
-	LLFuncType* llFuncType = llvm::dyn_cast<LLFuncType>(compileType(funcType));
+	FunctionTypePointer funcType = func->functionType(true);
+	LLType* llType = compileType(funcType);
+	if (llType == nullptr)
+		LogDebug("LLTYPE: ", llType);
+	LLFuncType* llFuncType = llvm::dyn_cast<LLFuncType>(llType);
 
 	// create function
 	LLFunction *llFunc = LLFunction::Create(llFuncType,
@@ -480,9 +483,6 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
-	LogDebug("Compile...");
-	LogDebug("Compile Exp:", "AAA", "BBB", "CCC");
-
 	if (auto e = dynamic_cast<Conditional const*>(exp))
 		return compileExp(e);
 
@@ -621,29 +621,119 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
-	LLValue* llLhs = compileExp(&(exp->leftExpression()));
-	LLValue* llRhs = compileExp(&(exp->rightExpression()));
+	LogDebug("Compile BinaryOperation:", exp);
+
+	Expression const& lhs = exp->leftExpression();
+	Expression const& rhs = exp->rightExpression();
+	Type const* lhsType = lhs.annotation().type;
+	Type const* rhsType = rhs.annotation().type;
+
+
+	bool isIntegerExp = false;
+	bool isSignedIntegerExp = false;
+	int numBitLhs = 0;
+	int numBitRhs = 0;
+	if (auto t = dynamic_cast<IntegerType const*>(lhsType)) {
+		isIntegerExp = true;
+		if (t->isSigned())
+			isSignedIntegerExp = true;
+		numBitLhs = t->numBits();
+	}
+	if (auto t = dynamic_cast<IntegerType const*>(rhsType)) {
+		isIntegerExp = true;
+		if (t->isSigned())
+			isSignedIntegerExp = true;
+		numBitRhs = t->numBits();
+	}
+
+	LLValue* llLhs = compileExp(&lhs);
+	LLValue* llRhs = compileExp(&rhs);
+
+	// casting types for integer expressions
+	if (isIntegerExp && (numBitLhs != numBitRhs)) {
+		if (isSignedIntegerExp) {
+			if (numBitLhs > numBitRhs)
+				llRhs = Builder.CreateSExt(llRhs, llLhs->getType());
+			else
+				llLhs = Builder.CreateSExt(llLhs, llRhs->getType());
+		}
+		else {
+			if (numBitLhs > numBitRhs)
+				llRhs = Builder.CreateZExt(llRhs, llLhs->getType());
+			else
+				llLhs = Builder.CreateZExt(llLhs, llRhs->getType());
+		}
+	}
+
+	LogDebug("LHS:", "RHS:", llLhs);
+	LogDebug("RHS:", "RHS:", llRhs);
 
 	if (!llLhs || !llRhs) return nullptr;
 
 	switch (exp->getOperator()) {
 	case Token::Equal:
-		return Builder.CreateICmpEQ(llLhs, llRhs);
+		if (isIntegerExp)
+			return Builder.CreateICmpEQ(llLhs, llRhs);
+		else {
+			LogError("Compile BinaryOperation: Unknown Equal Exp");
+			return nullptr;
+		}
 
 	case Token::NotEqual:
-		return Builder.CreateICmpNE(llLhs, llRhs);
+		if (isIntegerExp)
+			return Builder.CreateICmpNE(llLhs, llRhs);
+		else {
+			LogError("Compile BinaryOperation: Unknown Equal Exp");
+			return nullptr;
+		}
 
 	case Token::LessThan:
-		return Builder.CreateICmpSLT(llLhs, llRhs);
+		if (isIntegerExp) {
+			if (isSignedIntegerExp)
+				return Builder.CreateICmpSLT(llLhs, llRhs);
+			else
+				return Builder.CreateICmpULT(llLhs, llRhs);
+		}
+		else {
+			LogError("Compile BinaryOperation: Unknown LessThan Exp");
+			return nullptr;
+		}
 
 	case Token::GreaterThan:
-		return Builder.CreateICmpSGT(llLhs, llRhs);
+		if (isIntegerExp) {
+			if (isSignedIntegerExp)
+				return Builder.CreateICmpSGT(llLhs, llRhs);
+			else
+				return Builder.CreateICmpUGT(llLhs, llRhs);
+		}
+		else {
+			LogError("Compile BinaryOperation: Unknown GreaterThan Exp");
+			return nullptr;
+		}
 
 	case Token::LessThanOrEqual:
-		return Builder.CreateICmpSLE(llLhs, llRhs);
+		if (isIntegerExp) {
+			if (isSignedIntegerExp)
+				return Builder.CreateICmpSLE(llLhs, llRhs);
+			else
+				return Builder.CreateICmpULE(llLhs, llRhs);
+		}
+		else {
+			LogError("Compile BinaryOperation: Unknown LessThanOrEqual Exp");
+			return nullptr;
+		}
 
 	case Token::GreaterThanOrEqual:
-		return Builder.CreateICmpSGE(llLhs, llRhs);
+		if (isIntegerExp) {
+			if (isSignedIntegerExp)
+				return Builder.CreateICmpSGE(llLhs, llRhs);
+			else
+				return Builder.CreateICmpUGE(llLhs, llRhs);
+		}
+		else {
+			LogError("Compile BinaryOperation: Unknown GreaterThanOrEqual Exp");
+			return nullptr;
+		}
 
 	case Token::Comma:
 		LogError("compileExp: BinaryOp: need to support Comma Exp");

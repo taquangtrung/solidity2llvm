@@ -39,23 +39,6 @@ extern void print(llvm::Type*);
 
 // debugging functions
 
-// template <typename Arg>
-// void LogDebug(Arg arg) {
-// 	if (DebugLLVM) {
-// 		print(arg);
-// 		cout << endl;
-// 	}
-// }
-
-// template <typename Arg, typename... Rest>
-// void LogDebug(Arg arg, Rest... rest) {
-// 	if (DebugLLVM) {
-// 		print(arg);
-// 		cout << " ";
-// 		LogDebug(rest...);
-// 	}
-// }
-
 template <typename Arg>
 void LogDebugCore(Arg arg) {
 	if (DebugLLVM) {
@@ -67,16 +50,16 @@ template <typename Arg, typename... Rest>
 void LogDebugCore(Arg arg, Rest... rest) {
 	if (DebugLLVM) {
 		LogDebugCore(arg);
-		cout << " ";
+		llvm::outs() << " ";
 		LogDebugCore(rest...);
 	}
 }
 
 template <typename Arg, typename... Rest>
 void LogDebug(Arg arg, Rest... rest) {
-  cout << "!! ";
+  llvm::outs() << "!! ";
 	LogDebugCore(arg, rest...);
-	cout << endl;
+	llvm::outs() << "\n";
 }
 
 // error reporting functions
@@ -89,15 +72,15 @@ void LogErrorCore(Arg arg) {
 template <typename Arg, typename... Rest>
 void LogErrorCore(Arg arg, Rest... rest) {
 	LogErrorCore(arg);
-	cout << " ";
+	llvm::outs() << " ";
   LogErrorCore(rest...);
 }
 
 template <typename Arg, typename... Rest>
 void LogError(Arg arg, Rest... rest) {
-  cout << "@@ Error: ";
+  llvm::outs() << "@@ Error: ";
 	LogErrorCore(arg, rest...);
-	cout << endl;
+	llvm::outs() << "\n";
 	exit(1);
 }
 

@@ -177,8 +177,6 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// function type
 	FunctionTypePointer funcType = func->functionType(true);
 	LLType* llType = compileType(funcType);
-	if (llType == nullptr)
-		LogDebug("LLTYPE: ", llType);
 	LLFuncType* llFuncType = llvm::dyn_cast<LLFuncType>(llType);
 
 	// create function
@@ -621,8 +619,6 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
-	LogDebug("Compile BinaryOperation:", exp);
-
 	Expression const& lhs = exp->leftExpression();
 	Expression const& rhs = exp->rightExpression();
 	Type const* lhsType = lhs.annotation().type;
@@ -664,9 +660,6 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 				llLhs = Builder.CreateZExt(llLhs, llRhs->getType());
 		}
 	}
-
-	LogDebug("LHS:", "RHS:", llLhs);
-	LogDebug("RHS:", "RHS:", llRhs);
 
 	if (!llLhs || !llRhs) return nullptr;
 
@@ -795,14 +788,37 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
-		string funcName = getFunctionName(exp);
-		LLFunction *llFunc = CurrentModule->getFunction(funcName);
+		FunctionTypePointer funcType = dynamic_cast<FunctionType const*>(annon.type);
+		FunctionType const& functionType = *funcType;
 
-		vector<LLValue*> llArgs;
-		for (auto arg : exp->arguments())
-			llArgs.push_back(compileExp((&arg)->get()));
+		LogDebug("FuncType:", funcType);
 
-		return Builder.CreateCall(llFunc, llArgs);
+		switch (functionType.kind()) {
+		case FunctionType::Kind::Assert:
+		case FunctionType::Kind::Require:
+			LogError("Compile FunctionCall: handle Assert/Require");
+			return nullptr;
+
+		case FunctionType::Kind::External: {
+			string funcName = getFunctionName(exp);
+			LLFunction *llFunc = CurrentModule->getFunction(funcName);
+
+			LogDebug("llFunc:", llFunc);
+
+			vector<LLValue*> llArgs;
+			for (auto arg : exp->arguments())
+				llArgs.push_back(compileExp((&arg)->get()));
+
+			return Builder.CreateCall(llFunc, llArgs);
+		}
+
+		default:
+			LogError("Compile FunctionCall: Unknown FunctionCall");
+			return nullptr;
+		}
+
+		LogError("Compile FunctionCall: Unknown FunctionCall");
+		return nullptr;
 	}
 
 	// a call to a constructor of a struct

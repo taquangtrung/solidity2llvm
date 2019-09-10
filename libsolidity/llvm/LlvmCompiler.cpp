@@ -480,7 +480,8 @@ void LlvmCompiler::compileStmt(ExpressionStatement const* stmt) {
  ********************************************************/
 
 LLValue* LlvmCompiler::compileExp(Expression const* exp) {
-	// LogDebug("Compile Exp: ", *exp);
+	LogDebug("Compile...");
+	LogDebug("Compile Exp:", "AAA", "BBB", "CCC");
 
 	if (auto e = dynamic_cast<Conditional const*>(exp))
 		return compileExp(e);

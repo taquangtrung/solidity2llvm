@@ -460,7 +460,6 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
             for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
                 if (var != nullptr) {
                     LLValue *llVar = compileLocalVarDecl(*var);
-                    LLValue *llVar = compileLocalVarDecl(*var);
                     vector<LLValue *> gepIndices = makeIndexGEP({0, index});
                     LLValue *llVarVal = Builder.CreateGEP(llBaseValue, gepIndices);
                     Builder.CreateStore(llVarVal, llVar);

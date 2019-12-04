@@ -468,6 +468,15 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
                 index++;
             }
 	}
+        else{
+            // only one return
+            LLValue* llVar = compileLocalVarDecl(*(stmt->declarations().at(0)),t);
+            LogDebug("one_return_llInitValue",llInitValue);
+            LogDebug("one_return_llVar",llVar);
+            Builder.CreateStore(llInitValue, llVar);
+        }
+		return;
+	}
 
 	// initialized by other expressions
 	for (ASTPointer<VariableDeclaration> var : stmt->declarations())
@@ -1100,8 +1109,9 @@ LLType* LlvmCompiler::compileTypeName(Mapping const* type) {
 
 LLType* LlvmCompiler::compileTypeName(ArrayTypeName const* type) {
 	// TODO
-	LogError("compileTypeName: ArrayTypeName: unhandled");
-	return nullptr;
+    uint64_t size = (uint64_t)type->length();
+    LLType* llBaseType = compileTypeName(&type->baseType());
+    return LLArrayType::get(llBaseType, size);
 }
 
 LLType* LlvmCompiler::compileType(TypePointer type) {

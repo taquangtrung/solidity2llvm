@@ -847,7 +847,30 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
-		FunctionTypePointer funcType = dynamic_cast<FunctionType const*>(annon.type);
+	    Expression const* m_expression = &(exp->expression());
+        if(auto newExp = dynamic_cast<NewExpression const*>(m_expression)){
+            if(auto t = dynamic_cast<ArrayTypeName const*>(&newExp->typeName())){
+                LLType * baseType = compileTypeName(&t->baseType());
+                vector<LLValue*> llArgs;
+                for (auto arg : exp->arguments())
+                    llArgs.push_back(compileExp((&arg)->get()));
+                //get the elements number form the function args
+                // what's means the arraysize parameter
+                //%0 = add i256 %i, 3
+                // %1 = alloca [0 x [2 x i256]], i256 %0
+                LLValue * array =  Builder.CreateAlloca(baseType, llArgs[0],"");
+                cout<<"ArrayType"<<endl;
+                return  array;
+        }
+        else if(auto t = dynamic_cast<ContractType const*>(annon.type)){
+            cout<< "newexpression_contract"<<endl;
+            return nullptr;
+        }
+           
+        }
+
+
+        FunctionTypePointer funcType = dynamic_cast<FunctionType const*>(exp->expression().annotation().type);
 		FunctionType const& functionType = *funcType;
 
 		LogDebug("FuncType:", funcType);

@@ -430,7 +430,7 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	}
 
 	LLValue* llInitValue = compileExp(initValue);
-
+    LogDebug("initValue",initValue);
 	// initialized by a tuple
 	if (auto tplValue = dynamic_cast<TupleExpression const*>(initValue)) {
 		int index = 0;
@@ -446,21 +446,27 @@ void LlvmCompiler::compileStmt(VariableDeclarationStatement const* stmt) {
 	}
 
 	// initialized by a function call
-	if (dynamic_cast<FunctionCall const*>(initValue)) {
-		LLType* llBaseType = compileType(initValue->annotation().type);
-		LLValue* llBaseValue = Builder.CreateAlloca(llBaseType);
-		Builder.CreateStore(llInitValue, llBaseValue);
+	// extend for new expression or new contract
+	if (auto t = dynamic_cast<FunctionCall const*>(initValue)) {
+
 		int index = 0;
-		for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
-			if (var != nullptr) {
-				LLValue* llVar = compileLocalVarDecl(*var);
-				vector<LLValue*> gepIndices = makeIndexGEP({0, index});
-				LLValue* llVarVal = Builder.CreateGEP(llBaseValue, gepIndices);
-				Builder.CreateStore(llVarVal, llVar);
-			}
-			index++;
-		}
-		return;
+        // fixes bug for only one return of function eg. uint a = f();
+        if(stmt->declarations().size()>1) {
+            //function return is a tuple,need base alloca and store
+            LLType* llBaseType = compileType(initValue->annotation().type);
+            LLValue* llBaseValue = Builder.CreateAlloca(llBaseType);
+            Builder.CreateStore(llInitValue, llBaseValue);
+            // function return is a tuple
+            for (ASTPointer<VariableDeclaration> var : stmt->declarations()) {
+                if (var != nullptr) {
+                    LLValue *llVar = compileLocalVarDecl(*var);
+                    LLValue *llVar = compileLocalVarDecl(*var);
+                    vector<LLValue *> gepIndices = makeIndexGEP({0, index});
+                    LLValue *llVarVal = Builder.CreateGEP(llBaseValue, gepIndices);
+                    Builder.CreateStore(llVarVal, llVar);
+                }
+                index++;
+            }
 	}
 
 	// initialized by other expressions
@@ -516,9 +522,28 @@ LLValue* LlvmCompiler::compileExp(Expression const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Conditional const* exp) {
-	// TODO
-	LogError("compileExp: Conditional: unhandled");
-	return nullptr;
+	// TODO Kunpeng
+	/**
+	 * tranfer conditional to if-else statement
+	 */
+	Expression const& condExp = exp->condition();
+	Expression const& trueExp = exp->trueExpression();
+	Expression const& falseExp = exp->falseExpression();
+
+    LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
+    LLBlock* llBlockThen = LLBlock::Create(Context, ".if.then", llFunc);
+    LLBlock* llBlockElse = LLBlock::Create(Context, ".if.else", llFunc);
+    LLBlock* llBlockEnd = LLBlock::Create(Context, ".if.end", llFunc);
+
+    LLValue* llCond = compileExp(&condExp);
+    Builder.CreateCondBr(llCond, llBlockThen, llBlockElse);
+    Builder.SetInsertPoint(llBlockThen);
+    compileExp(&trueExp);
+    Builder.CreateBr(llBlockEnd);
+
+    Builder.SetInsertPoint(llBlockElse);
+    compileExp(&falseExp);
+    return Builder.CreateBr(llBlockEnd);
 }
 
 LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
@@ -570,7 +595,32 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 		LogError("Compile Assignment: unknown RHS expression");
 		return nullptr;
 	}
+    // RH is conditional expression
+    // eg:   d = a > b ? a : b;
+    if (auto rhs_cond = dynamic_cast<Conditional const*>(&rhs)){
+        LLValue* llLhs = compileExp(&lhs);
+        Expression const& condExp = rhs_cond->condition();
+        Expression const& trueExp = rhs_cond->trueExpression();
+        Expression const& falseExp = rhs_cond->falseExpression();
+        //select
+        //return  Builder.CreateSelect(llCond,compileExp(&trueExp),compileExp(&falseExp));
+        LLFunction* llFunc = Builder.GetInsertBlock()->getParent();
+        LLValue* llCond = compileExp(&condExp);
+        LLBlock* llBlockThen = LLBlock::Create(Context, ".if.then", llFunc);
+        LLBlock* llBlockElse = LLBlock::Create(Context, ".if.else", llFunc);
+        LLBlock* llBlockEnd = LLBlock::Create(Context, ".if.end", llFunc);
 
+        Builder.CreateCondBr(llCond, llBlockThen, llBlockElse);
+
+        Builder.SetInsertPoint(llBlockThen);
+        LLValue* llRhsTrue = compileRhsExp(&trueExp);
+        Builder.CreateStore(llRhsTrue, llLhs);
+        Builder.CreateBr(llBlockEnd);
+        Builder.SetInsertPoint(llBlockElse);
+        LLValue* llRhsFalse = compileRhsExp(&falseExp);
+        Builder.CreateStore(llRhsFalse, llLhs);
+        return Builder.CreateBr(llBlockEnd);
+    }
 	// other cases
 	LLValue* llLhs = compileExp(&lhs);
 	LLValue* llRhs = compileRhsExp(&rhs);
@@ -799,7 +849,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 			LogError("Compile FunctionCall: handle Assert/Require");
 			return nullptr;
 
-		case FunctionType::Kind::External: {
+		case FunctionType::Kind::Internal: {
 			string funcName = getFunctionName(exp);
 			LLFunction *llFunc = CurrentModule->getFunction(funcName);
 
@@ -901,8 +951,16 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(IndexAccess const* exp) {
-	// TODO
-	return nullptr;
+	// TODO Kunpeng
+	Expression const* baseExp = &exp->baseExpression();
+	Expression const* indexExp = exp->indexExpression();
+    LLValue* llBaseExp = compileExp(baseExp);
+    LLValue* llIndexExp = compileExp(indexExp);
+
+    vector<LLValue*> valueIndex;
+    valueIndex.push_back(LLConstantInt::get(LLType::getInt32Ty(Context), 0));
+    valueIndex.push_back(llIndexExp);
+	return Builder.CreateGEP(llBaseExp, valueIndex);
 }
 
 LLValue* LlvmCompiler::compileExp(PrimaryExpression const* exp) {

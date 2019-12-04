@@ -146,21 +146,42 @@ LLValue* LlvmCompiler::compileGlobalVarDecl(VariableDeclaration const* var) {
 
 	return llVar;
 }
+LLType * LlvmCompiler::arrayToPointer(ArrayType const * type){
+    Type const* baseType = type->baseType();
+    if(auto t = dynamic_cast<ArrayType const*>(baseType)){
+        LLType * elemeType = arrayToPointer(t);
+        return llvm::PointerType::getUnqual(elemeType);
+    }
+    else{
+        return compileType(baseType);
+    }
+
+}
+
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var,
 																					 Expression const* value) {
 	LLType* llType = compileType(var.type());
 	string name = var.name();
+    LLValue* llVar;
+    if (auto t = dynamic_cast<ArrayType const*>(var.type())){
+        //poiner and length
+        LLType * baseType = arrayToPointer(t);
+        llVar = Builder.CreateAlloca(baseType, nullptr, name);
+    }
+    else{
+        llVar = Builder.CreateAlloca(llType, nullptr, name);
+    }
 
-	LLValue* llVar = Builder.CreateAlloca(llType, nullptr, name);
 	MapLocalVars[name] = llVar;
 	SetLocalVars.insert(llVar);
 
 	if (value == nullptr)
 		return llVar;
 
-	LLValue* llValue = compileExp(value);
-	return Builder.CreateStore(llValue, llVar);
+	//LLValue* llValue = compileExp(value);
+	//return Builder.CreateStore(llValue, llVar);
+    return  llVar;
 }
 
 LLValue* LlvmCompiler::compileLocalVarDecl(VariableDeclaration& var) {
@@ -840,7 +861,9 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	}
 }
 
+
 LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
+
 	FunctionCallAnnotation &annon = exp->annotation();
 	LLType* llType = compileType(annon.type);
 
@@ -872,7 +895,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
         FunctionTypePointer funcType = dynamic_cast<FunctionType const*>(exp->expression().annotation().type);
 		FunctionType const& functionType = *funcType;
 
-		LogDebug("FuncType:", funcType);
+		//LogDebug("FuncType:", funcType);
 
 		switch (functionType.kind()) {
 		case FunctionType::Kind::Assert:
@@ -934,6 +957,26 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 LLValue* LlvmCompiler::compileExp(NewExpression const* exp) {
 	// TODO: need to implement
+//	TypeName const* typeName = &(exp->typeName());
+//    if(auto newExp = dynamic_cast<NewExpression const*>(m_expression)){
+//        if(auto t = dynamic_cast<ArrayTypeName const*>(&newExp->typeName())){
+//            TypeName const* baseType = &t->baseType();
+//            vector<LLValue*> llArgs;
+//            for (auto arg : exp->arguments())
+//                llArgs.push_back(compileExp((&arg)->get()));
+//            //get the elements number form the function args
+//            // what's means the arraysize parameter
+//            //%0 = add i256 %i, 3
+//            // %1 = alloca [0 x [2 x i256]], i256 %0
+//            LLValue * array =  Builder.CreateAlloca(llType, llArgs[0],"");
+//            cout<<"ArrayType"<<endl;
+//            return  array;
+//        }
+//        else if(auto t = dynamic_cast<ContractType const*>(annon.type)){
+//            cout<< "newexpression_contract"<<endl;
+//            return nullptr;
+//        }
+
 	return nullptr;
 }
 
@@ -1124,8 +1167,12 @@ LLType* LlvmCompiler::compileTypeName(FunctionTypeName const* type) {
 }
 
 LLType* LlvmCompiler::compileTypeName(Mapping const* type) {
-	// TODO
-	LogError("compileTypeName: Mapping: unhanded");
+	// TODO Kunpeng
+    ElementaryTypeName const &keyType = type->keyType();
+    TypeName const &valueType = type->valueType();
+    compileTypeName(&keyType);
+    compileTypeName(&valueType);
+
 	return nullptr;
 }
 
@@ -1317,8 +1364,11 @@ LLType* LlvmCompiler::compileType(FunctionType const* type) {
 }
 
 LLType* LlvmCompiler::compileType(MappingType const* type) {
-	// TODO
-	LogError("MappingType");
+	// TODO Kunpeng
+    TypePointer keyType = type->keyType();
+    TypePointer valueType = type->valueType();
+    compileType(keyType);
+    compileType(valueType);
 	return nullptr;
 }
 

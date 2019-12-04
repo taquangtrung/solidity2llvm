@@ -13,11 +13,12 @@ contract SimpleStorage {
         int z = 3;
         int d = 4;
         if (a > b)
-            z = a;
+            z =  get_a(a);
         else
             z = b;
 
-        d = a > b ?  a : b;
+        d = a > b ?  get_a(a) : b;
+        a > b ?  d = a : d = b;
 
     }
 }

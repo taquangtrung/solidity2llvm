@@ -9,8 +9,9 @@ contract SimpleStruct {
     uint storedData;
 
     function set(uint x) public {
-        Foo a;
+        Foo memory a;
         x = x + 2;
+        a.value = x;
         /* bytes32 s = "A"; */
         /* s = "B"; */
     }

@@ -1,4 +1,4 @@
-pragma solidity ^0.4.22;
+pragma solidity >= 0.4.0;
 
 /// @title Voting with delegation.
 contract Ballot {
@@ -28,7 +28,7 @@ contract Ballot {
     Proposal[] public proposals;
 
     /// Create a new ballot to choose one of `proposalNames`.
-    constructor(bytes32[] proposalNames) public {
+    constructor(bytes32[] memory proposalNames) public {
         chairperson = msg.sender;
         voters[chairperson].weight = 1;
 

@@ -58,6 +58,7 @@ using LLIntegerType = llvm::IntegerType;
 using LLStructType = llvm::StructType;
 using LLFuncType = llvm::FunctionType;
 using LLGlobalVar = llvm::GlobalVariable;
+using LLPointerType = llvm::PointerType;
 
 namespace dev {
 
@@ -81,7 +82,7 @@ class LlvmCompiler {
 	LLIntegerType* compileEnumDecl(EnumDefinition const*);
 	LLValue* compileGlobalVarDecl(VariableDeclaration const*);
 	LLValue* compileLocalVarDecl(VariableDeclaration&, Expression const*);
-	LLValue* compileLocalVarDecl(VariableDeclaration&);
+	LLValue*  compileLocalVarDecl(VariableDeclaration&);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
 
 	// compile statements
@@ -164,6 +165,8 @@ class LlvmCompiler {
 	LLValue* findNamedValue(string);
 	string getFunctionName(FunctionCall const*);
 	vector<LLValue*> makeIndexGEP(list<int>);
+	// tools
+    LLType * arrayToPointer(ArrayType const*);
 
 private:
 	const ContractDefinition* CompilingContract;

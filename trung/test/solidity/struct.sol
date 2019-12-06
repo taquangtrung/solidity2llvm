@@ -1,4 +1,4 @@
-pragma solidity >= 0.4.0;
+pragma solidity ^0.4.0;
 
 contract SimpleStruct {
     struct Foo {
@@ -9,9 +9,8 @@ contract SimpleStruct {
     uint storedData;
 
     function set(uint x) public {
-        Foo memory a;
+        Foo a;
         x = x + 2;
-        a.value = x;
         /* bytes32 s = "A"; */
         /* s = "B"; */
     }

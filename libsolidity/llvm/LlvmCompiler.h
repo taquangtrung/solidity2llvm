@@ -84,6 +84,7 @@ class LlvmCompiler {
 	LLValue* compileLocalVarDecl(VariableDeclaration&, Expression const*);
 	LLValue*  compileLocalVarDecl(VariableDeclaration&);
 	LLFunction* compileFuncDecl(FunctionDefinition const*);
+	LLStructType* compileGlobal(vector<VariableDeclaration const*> vars);
 
 	// compile statements
 	void compileStmt(Statement const& stmt);
@@ -182,6 +183,7 @@ private:
 
 	// global vars for module
 	map<string, LLValue*> MapGlobalVars;
+	map<string, int> MapGlobalVarsIndex;
 	map<string, LLStructType*> MapStructTypes;
 	map<string, map<string, int> > MapEnumTypes;
 	map<string, LLType*> MapTupleType;

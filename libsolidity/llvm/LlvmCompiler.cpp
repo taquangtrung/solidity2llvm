@@ -66,6 +66,9 @@ void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 		compileStructDecl(d);
 	for (EnumDefinition const* d: contract->definedEnums())
 		compileEnumDecl(d);
+	//contract
+	compileGlobal(contract->stateVariables());
+	//for ()
 
 	// perform optimization passes
 	FunctionPM =
@@ -131,7 +134,6 @@ LLIntegerType* LlvmCompiler::compileEnumDecl(EnumDefinition const* d) {
 LLValue* LlvmCompiler::compileGlobalVarDecl(VariableDeclaration const* var) {
 	LLType* llType = compileType(var->type());
 	string name = var->name();
-
 	LLConstant *llInitValue = nullptr;
 
 	if (Expression* v = var->value().get())
@@ -194,6 +196,13 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 
 	// function name
 	string funcName = func->name();
+	cout<<"function:" + funcName<<endl;
+	if(funcName==""){
+		funcName = ContractName;
+	}
+	else{
+		funcName = ContractName + "." + func->name();
+	}
 
 	// function type
 	FunctionTypePointer funcType = func->functionType(true);
@@ -208,9 +217,16 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	// set names for parameters and also record it to local names
 	int index = 0;
 	for (auto &arg : llFunc->args()) {
-		string paramName = func->parameters().at(index)->name();
-		arg.setName(paramName);
-		MapLocalVars[paramName] = &arg;
+		if(index == 0){
+			string paramName = "this";
+			arg.setName(paramName);
+			MapLocalVars[paramName] = &arg;
+		}
+		else{
+			string paramName = func->parameters().at(index-1)->name();
+			arg.setName(paramName);
+			MapLocalVars[paramName] = &arg;
+		}
 		index++;
 	}
 
@@ -229,6 +245,24 @@ LLFunction* LlvmCompiler::compileFuncDecl(FunctionDefinition const* func) {
 	FunctionPM->run(*llFunc);
 
 	return llFunc;
+}
+
+LLStructType * LlvmCompiler::compileGlobal(vector<VariableDeclaration const*> vars){
+	string name = "contract." + ContractName;
+
+	// fields of structs
+	vector<LLType*> llElems;
+	int index = 0;
+	for (auto var : vars){
+		llElems.push_back(compileType(var->type()));
+		MapGlobalVarsIndex[var->name()]=index;
+		index++;
+	}
+	LLStructType* llType = LLStructType::create(Context, llElems, name, true);
+	MapStructTypes[name] = llType;
+
+	return llType;
+
 }
 
 /********************************************************
@@ -429,7 +463,12 @@ void LlvmCompiler::compileStmt(Return const* stmt) {
 	}
 	else {
 		// return a normal expression
-		Builder.CreateRet(compileExp(returnExp));
+		//when the value
+		LLValue * returnValue = compileExp(returnExp);
+		if(llvm::dyn_cast<LLPointerType>(returnValue->getType())){
+			returnValue = Builder.CreateLoad(returnValue);
+		}
+		Builder.CreateRet(returnValue);
 	}
 }
 
@@ -577,7 +616,7 @@ LLValue* LlvmCompiler::compileExp(Conditional const* exp) {
 }
 
 LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
-  Expression const& lhs = exp->leftHandSide();
+	Expression const& lhs = exp->leftHandSide();
 	Expression const& rhs = exp->rightHandSide();
 
 	// LHS is a tuple
@@ -657,6 +696,8 @@ LLValue* LlvmCompiler::compileExp(Assignment const* exp) {
 	LogDebug("rhs",llRhs);
 	LLValue* llLhs = compileExp(&lhs);
 	LogDebug("lhs",llLhs);
+	// store first argument is value, seconde value is pointer of first type
+
 	return Builder.CreateStore(llRhs, llLhs);
 }
 
@@ -681,13 +722,21 @@ LLValue* LlvmCompiler::compileExp(UnaryOperation const* exp) {
 
 	case Token::Inc: {
 		LLValue* llOne = LLConstantInt::get(llSubExp->getType(), 1);
-		LLValue* llResult = Builder.CreateAdd(llSubExp, llOne);
+		LLValue* llSubExpValue = llSubExp;
+		if(llvm::dyn_cast<LLPointerType >(llSubExp->getType())){
+			llSubExpValue = Builder.CreateLoad(llSubExp);
+		}
+		LLValue* llResult = Builder.CreateAdd(llSubExpValue, llOne);
 		return Builder.CreateStore(llResult, llSubExp);
 	}
 
 	case Token::Dec: {
 		LLValue* llOne = LLConstantInt::get(llSubExp->getType(), 1);
-		LLValue* llResult = Builder.CreateSub(llSubExp, llOne);
+		LLValue* llSubExpValue = llSubExp;
+		if(llvm::dyn_cast<LLPointerType >(llSubExp->getType())){
+			llSubExpValue = Builder.CreateLoad(llSubExp);
+		}
+		LLValue* llResult = Builder.CreateSub(llSubExpValue, llOne);
 		return Builder.CreateStore(llResult, llSubExp);
 	}
 
@@ -728,6 +777,7 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	LLValue* llLhs = compileExp(&lhs);
 	LLValue* llRhs = compileExp(&rhs);
 
+
 	// casting types for integer expressions
 	if (isIntegerExp && (numBitLhs != numBitRhs)) {
 		if (isSignedIntegerExp) {
@@ -745,7 +795,13 @@ LLValue* LlvmCompiler::compileExp(BinaryOperation const* exp) {
 	}
 
 	if (!llLhs || !llRhs) return nullptr;
-
+	// load the value of pointer type
+	if(llvm::dyn_cast<LLPointerType >(llLhs->getType())){
+		llLhs = Builder.CreateLoad(llLhs);
+	}
+	if(llvm::dyn_cast<LLPointerType >(llRhs->getType())){
+		llRhs = Builder.CreateLoad(llRhs);
+	}
 	switch (exp->getOperator()) {
 	case Token::Equal:
 		if (isIntegerExp)
@@ -874,9 +930,11 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 	// a call to a normal function
 	if (annon.kind == FunctionCallKind::FunctionCall) {
 		// new expression
+
 		Expression const* m_expression = &(exp->expression());
 		// new a dynamic array
 		if(auto newExp = dynamic_cast<NewExpression const*>(m_expression)){
+			LogDebug("new expression", m_expression);
 			if(auto  arrayType = dynamic_cast<ArrayType const*>(annon.type)){
 				LLType * baseType;
 				if(auto t = dynamic_cast<ArrayType const*>(arrayType->baseType())){
@@ -886,15 +944,35 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 					baseType = compileType(arrayType->baseType());
 				}
 				vector<LLValue*> llArgs;
-				for (auto arg : exp->arguments())
-					llArgs.push_back(compileExp((&arg)->get()));
+				for (auto arg : exp->arguments()) {
+					LLValue * argValue = compileExp((&arg)->get());
+					if(llvm::dyn_cast<LLPointerType >(argValue->getType())){
+						argValue = Builder.CreateLoad(argValue);
+					}
+					llArgs.push_back(argValue);
+				}
 				LLValue * array =  Builder.CreateAlloca(baseType, llArgs[0],"");
 				return  array;
 			}
 			// new a contract
 			else if(auto t = dynamic_cast<ContractType const*>(annon.type)){
 				cout<< "newexpression_contract"<<endl;
-				return nullptr;
+				LLType * contractType = compileType(t);
+
+				LLValue * contract = Builder.CreateAlloca(contractType);
+				int index = 0;
+				for (auto arg : exp->arguments()){
+					//llArgs.push_back(compileType(((&arg)->get())->annotation().type));
+
+					LLValue* argValue = compileExp((&arg)->get());
+					vector<LLValue*> gepIndices = makeIndexGEP({0,index});
+					LogDebug("arg",argValue);
+					LLValue* llValue = Builder.CreateGEP(contract, gepIndices);
+					Builder.CreateStore(argValue, llValue);
+					index++;
+				}
+				//Builder.Store
+				return contract;
 			}
 		}
 
@@ -975,6 +1053,7 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 	TypePointer baseType = baseExp.annotation().type;
 
 	LLValue* llBaseExp = compileExp(&baseExp);
+
 	LLType* llBaseType = compileType(baseType);
 
 	if (dynamic_cast<TypeType const*>(baseType)) {
@@ -1003,6 +1082,7 @@ LLValue* LlvmCompiler::compileExp(MemberAccess const* exp) {
 		}
 
 		vector<LLValue*> valueIndex = makeIndexGEP({0, index});
+		LogDebug("structbase",llBaseExp);
 		return Builder.CreateGEP(llBaseExp, valueIndex);
 	}
 
@@ -1299,8 +1379,8 @@ LLType* LlvmCompiler::compileType(ArrayType const* type) {
 
 LLType* LlvmCompiler::compileType(ContractType const* type) {
 	// TODO
-	LogError("ContractType");
-	return nullptr;
+	string name = type->canonicalName();
+	return MapStructTypes[name];
 }
 
 LLType* LlvmCompiler::compileType(EnumType const* type) {
@@ -1357,6 +1437,8 @@ LLType* LlvmCompiler::compileType(FunctionType const* type) {
 
 	// params type
 	vector<LLType*> llParamTypes;
+	LLStructType * contract = MapStructTypes["contract." + ContractName];
+	llParamTypes.push_back(llvm::PointerType::getUnqual(contract));
 	for (Type const* t: type->parameterTypes())
 		llParamTypes.push_back(compileType(t));
 
@@ -1459,9 +1541,13 @@ LLValue* LlvmCompiler::findNamedValue(string name) {
 	if (MapLocalVars.find(name) != MapLocalVars.end())
 		return MapLocalVars[name];
 
-	if (MapGlobalVars.find(name) != MapGlobalVars.end())
-		return MapGlobalVars[name];
-
+	if (MapGlobalVars.find(name) != MapGlobalVars.end()){
+		int index = MapGlobalVarsIndex[name];
+		vector<LLValue*> valueIndex = makeIndexGEP({0, index});
+		LLValue * basevalue = MapLocalVars["this"];
+		LLValue * value = Builder.CreateGEP(basevalue, valueIndex);
+		return value;
+	}
 	return nullptr;
 }
 

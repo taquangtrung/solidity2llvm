@@ -1,31 +1,31 @@
 pragma solidity >0.4.0;
 
 contract Apple{
-    uint public money;
+    uint public weight;
     constructor(uint x) public{
-
-        //uint[] memory array = new uint[](x);
-        money = x;
+        weight = x;
     }
     function set(uint x) public{
-        money = x;
+        weight = x;
     }
 
     function get() public returns(uint){
-        return money;
+        return weight;
     }
 
 }
 
 contract Banana{
-    uint money;
+    uint weight;
+    uint length;
     constructor(uint x) public{
         Apple a = new Apple(x);
-        money = a.money();
-        money = a.get();
+        //weight = a.weight();
+        //a.set(x+1);
+        //weight = a.weight();
     }
     function set(uint x) public{
-        money = x;
+        weight = x;
     }
     /*
     function get() public returns(uint) {

@@ -1,12 +1,13 @@
 pragma solidity >= 0.4.0;
 
 contract SimpleStorage {
-    uint storedData;
+    uint storedData=2;
 
     function set(uint x) public {
         storedData = x;
         x = x + 2;
-        bytes32 s = "A";
+
+        //bytes32 s = "A";
         /* s = "B"; */
     }
 

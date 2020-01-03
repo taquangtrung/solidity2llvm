@@ -1415,6 +1415,7 @@ void CommandLineInterface::outputCompilationResults()
 	}
 
 	vector<string> contracts = m_compiler->contractNames();
+	// TODO output on llvm ir file
 	for (string const& contract: contracts)
 	{
 		if (needsHumanTargetedStdout(m_args))

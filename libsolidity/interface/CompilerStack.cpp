@@ -632,6 +632,25 @@ string CompilerStack::llvmString(string const& _contractName, StringMap _sourceC
 				return string();
 }
 
+/// compile Solidity to one LLVM IR file
+string CompilerStack::llvmStrings(string const& _contractName, vector<string> _contractNames) const
+{
+	Contract const& currentContract = contract(_contractName);
+	vector<ContractDefinition const*> contracts;
+	if (currentContract.llvmCompiler && _contractName == _contractNames.back())
+	{
+		for(string const& contractName : _contractNames){
+			ContractDefinition const* constart = &(contractDefinition(contractName));
+			contracts.push_back(constart);
+		}
+		return currentContract.llvmCompiler->llvmString(contracts);
+	}
+	else{
+		return string();
+	}
+
+}
+
 vector<string> CompilerStack::sourceNames() const
 {
 	vector<string> names;

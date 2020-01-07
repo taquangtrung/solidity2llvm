@@ -47,6 +47,32 @@ string LlvmCompiler::llvmString(ContractDefinition const* contract,
 
 }
 
+string LlvmCompiler::llvmString(vector<const ContractDefinition *> contracts) {
+	LoopStack.empty();
+
+	cout << endl << "==========================" << endl ;
+	cout << "** Compiling Solidity to LLVM IR ..." << endl;
+	string sourceFile = contracts.back()->sourceUnitName();
+	CurrentModule = llvm::make_unique<llvm::Module>(ContractName, Context);
+	CurrentModule->setSourceFileName(contracts.back()->sourceUnitName());
+	for(auto contract : contracts)
+		compileContracts(contract);
+
+	// validate module
+	llvm::verifyModule(*CurrentModule);
+
+	cout << endl << "==========================" << endl ;
+	cout << "** Output LLVM IR: " << endl << endl;
+	CurrentModule->print(llvm::outs(), nullptr);
+
+	std::error_code EC;
+	llvm::raw_fd_ostream OS("module", EC, llvm::sys::fs::F_None);
+	llvm::WriteBitcodeToFile(&(*CurrentModule), OS);
+	OS.flush();
+
+
+	return "";
+}
 /********************************************************
  *               Compile Contract
  ********************************************************/
@@ -94,7 +120,38 @@ void LlvmCompiler::compileContract(ContractDefinition const* contract) {
 	for (FunctionDefinition const* func: contract->definedFunctions())
 		compileFuncDecl(func);
 }
+void LlvmCompiler::compileContracts(ContractDefinition const* contract) {
+	// prepare environment
+	//MapGlobalVars.clear();
+	//MapTupleType.clear();
 
+	// make contract
+	ContractName = contract->name();
+//	CurrentModule = llvm::make_unique<llvm::Module>(ContractName, Context);
+//	CurrentModule->setSourceFileName(contract->sourceUnitName());
+
+	// structs and enums
+	for (StructDefinition const* d: contract->definedStructs())
+		compileStructDecl(d);
+	for (EnumDefinition const* d: contract->definedEnums())
+		compileEnumDecl(d);
+	//contract
+	compileGlobal(contract->stateVariables());
+	//for ()
+
+	// perform optimization passes
+	FunctionPM =
+			llvm::make_unique<llvm::legacy::FunctionPassManager>(CurrentModule.get());
+
+	FunctionPM->doInitialization();
+
+	for (VariableDeclaration const* var: contract->stateVariables())
+		compileGlobalVarDecl(var);
+
+	// functions
+	for (FunctionDefinition const* func: contract->definedFunctions())
+		compileFuncDecl(func);
+}
 
 /********************************************************
  *                Compile Declarations
@@ -958,7 +1015,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 			else if(auto t = dynamic_cast<ContractType const*>(annon.type)){
 				cout<< "newexpression_contract"<<endl;
 				LLType * contractType = compileType(t);
-
+				LogDebug("contractType",contractType);
 				LLValue * contract = Builder.CreateAlloca(contractType);
 				int index = 0;
 				for (auto arg : exp->arguments()){
@@ -981,7 +1038,6 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 		FunctionType const& functionType = *funcType;
 
 		//LogDebug("FuncType:", funcType);
-
 		switch (functionType.kind()) {
 		case FunctionType::Kind::Assert:
 		case FunctionType::Kind::Require:
@@ -990,6 +1046,7 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 		case FunctionType::Kind::Internal: {
 			string funcName = getFunctionName(exp);
+			cout<< "funcName:"<<funcName<<endl;
 			LLFunction *llFunc = CurrentModule->getFunction(funcName);
 
 			LogDebug("llFunc:", llFunc);
@@ -1000,7 +1057,18 @@ LLValue* LlvmCompiler::compileExp(FunctionCall const* exp) {
 
 			return Builder.CreateCall(llFunc, llArgs);
 		}
-
+		//external contract function call e.g a.set(x); a is contract object
+		case FunctionType::Kind::External: {
+			Expression const& baseExp = exp->expression();
+			string funcName = getFunctionName(exp);
+			LLFunction * llFunc = CurrentModule->getFunction(funcName);
+			vector<LLValue*> llArgs;
+			if(auto exp = dynamic_cast<MemberAccess const*> (&baseExp))
+				llArgs.push_back(compileExp(&(exp->expression())));
+			for (auto arg : exp->arguments())
+				llArgs.push_back(compileExp((&arg)->get()));
+			return Builder.CreateCall(llFunc,llArgs);
+		}
 		default:
 			LogError("Compile FunctionCall: Unknown FunctionCall");
 			return nullptr;
@@ -1379,7 +1447,8 @@ LLType* LlvmCompiler::compileType(ArrayType const* type) {
 
 LLType* LlvmCompiler::compileType(ContractType const* type) {
 	// TODO
-	string name = type->canonicalName();
+	string name = "contract." + type->canonicalName();
+	cout<<"contractname"<<name<<endl;
 	return MapStructTypes[name];
 }
 
@@ -1553,8 +1622,16 @@ LLValue* LlvmCompiler::findNamedValue(string name) {
 
 string LlvmCompiler::getFunctionName(FunctionCall const* exp) {
 	Expression const& baseExp = exp->expression();
-	if (auto idExp = dynamic_cast<Identifier const*>(&baseExp))
-		return idExp->name();
+	if (auto idExp = dynamic_cast<Identifier const*>(&baseExp)) {
+		return ContractName + "." + idExp->name();
+	}
+	//exteral function call
+	else if (auto exp = dynamic_cast<MemberAccess const*>(&baseExp)){
+		string name = exp->memberName();
+		Expression const& baseExp = exp->expression();
+		TypePointer baseType = baseExp.annotation().type;
+		return baseType->canonicalName()+"."+name;
+	}
 
 	return nullptr;
 }

@@ -5,7 +5,7 @@ contract SimpleStorage {
 
     function set(uint x) public {
         storedData = x;
-        x = x + 2;
+        x = get();
 
         //bytes32 s = "A";
         /* s = "B"; */

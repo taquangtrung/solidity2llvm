@@ -1415,7 +1415,6 @@ void CommandLineInterface::outputCompilationResults()
 	}
 
 	vector<string> contracts = m_compiler->contractNames();
-	// TODO output on llvm ir file
 	for (string const& contract: contracts)
 	{
 		if (needsHumanTargetedStdout(m_args))
@@ -1443,8 +1442,9 @@ void CommandLineInterface::outputCompilationResults()
 		// translate to LLVM IR
 		if (m_args.count(g_argLlvm)) {
 			DebugLLVM = m_args.count(g_argDebug);
-
-			string ret = m_compiler->llvmString(contract, m_sourceCodes);
+			//  TODO output one llvm ir file
+			//string ret = m_compiler->llvmString(contract, m_sourceCodes);
+			string ret = m_compiler->llvmStrings(contract, contracts);
 			sout() << ret << endl;
 		}
 

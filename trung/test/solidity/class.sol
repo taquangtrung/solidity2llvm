@@ -20,16 +20,11 @@ contract Banana{
     uint length;
     constructor(uint x) public{
         Apple a = new Apple(x);
-        //weight = a.weight();
-        //a.set(x+1);
-        //weight = a.weight();
+        weight = a.get();
+        a.set(x+1);
+        weight = x;
     }
     function set(uint x) public{
         weight = x;
     }
-    /*
-    function get() public returns(uint) {
-        return money;
-    }
-    */
 }

@@ -270,7 +270,7 @@ public:
 	/// @arg _sourceCodes is the map of input files to source code strings
 	/// Prerequisite: Successful compilation.
 	std::string llvmString(std::string const& _contractName, StringMap _sourceCodes = StringMap()) const;
-
+	std::string llvmStrings(std::string const& _contractName, std::vector<std::string> _contractNames) const;
 	/// @returns a JSON representing the contract ABI.
 	/// Prerequisite: Successful call to parse or compile.
 	Json::Value const& contractABI(std::string const& _contractName) const;

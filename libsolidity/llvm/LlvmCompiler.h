@@ -76,7 +76,7 @@ class LlvmCompiler {
 	CompilingContract(nullptr), Builder(Context) { }
 
 	void compileContract(ContractDefinition const* contract);
-
+	void compileContracts(ContractDefinition const* contract);
 	// declarations
 	LLStructType* compileStructDecl(StructDefinition const*);
 	LLIntegerType* compileEnumDecl(EnumDefinition const*);
@@ -156,6 +156,7 @@ class LlvmCompiler {
 
 	// compile a contract to string.
 	string llvmString(const ContractDefinition* contract, StringMap sourceCodes);
+	string llvmString(vector<ContractDefinition const*> contracts);
 
 	// supporting functions
 	string stringOf(LLModule*);
@@ -177,7 +178,8 @@ private:
 	LLContext Context;
 	llvm::IRBuilder<> Builder;
 	unique_ptr<LLModule> CurrentModule;
-	string ContractName;
+	string  ContractName;
+	vector<string> ContractNames;
 	unique_ptr<llvm::legacy::FunctionPassManager> FunctionPM;
 	stack<LoopInfo> LoopStack;
 
